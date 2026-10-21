@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>톡클라우드 정리 · 보호 설정 이전</title>
+  <link rel="stylesheet" href="manager.css">
+  <style>
+    main.transfer { max-width: 900px; margin: 28px auto; padding: 0 20px 40px; }
+    .transfer h1 { font-size: 27px; }
+    .transfer h2 { font-size: 18px; margin-bottom: 16px; }
+    .transfer p { line-height: 1.7; }
+    .transfer .panel { margin-top: 22px; padding: 24px; }
+    .transfer .actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0 10px; }
+    .transfer .counts { font-size: 20px; font-weight: 700; margin: 14px 0; }
+    .transfer .help { margin: 10px 0; }
+    .transfer .status { margin-top: 20px; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .transfer textarea { width: 100%; min-height: 110px; margin-top: 10px; padding: 12px; border: 1px solid #deddd4; border-radius: 8px; font: 12px/1.6 monospace; resize: vertical; }
+    .transfer code { overflow-wrap: anywhere; }
+    .transfer summary { cursor: pointer; font-weight: 600; margin: 12px 0; }
+    .transfer .fingerprint { font: 12px/1.6 monospace; overflow-wrap: anywhere; }
+    .transfer .preview { background: #fffbe5; border-radius: 10px; padding: 16px; margin-top: 16px; }
+    .transfer input[type=file] { max-width: 100%; }
+    .transfer .steps { padding-left: 22px; line-height: 1.8; }
+    .transfer .caution { padding: 14px 18px; background: #fff8d6; border-radius: 10px; }
+  </style>
+</head>
+<body>
+<main class="transfer">
+  <header><p class="eyebrow">톡클라우드 정리 · 로컬 설정</p><h1>보호 설정을 안전하게 옮기기</h1><p class="intro">보호한 파일과 채팅방을 계정별로 백업하고, 새 설치본에 합쳐 복원합니다.</p></header>
+  <p class="caution">다른 관리 탭을 닫고 이전하세요. 기존 확장은 복원 확인 전까지 제거하지 마세요. 사진·파일 내용, 로그인 정보와 삭제 대상 선택은 이 백업에 포함되지 않습니다.</p>
+  <p class="help">현재 확장 ID: <code id="extensionId">확인 중</code><br>백업에는 계정 식별자와 보호 항목·채팅방의 ID 및 이름이 들어 있습니다. 암호화되지 않은 개인 백업이므로 GitHub나 공개 게시물에 올리지 마세요.</p>
+  <div id="status" class="status" role="status" aria-live="polite">보호 설정을 읽고 있습니다.</div>
+
+  <section class="panel" aria-labelledby="backupHeading">
+    <h2 id="backupHeading">1. 기존 설치본에서 백업</h2>
+    <p id="currentCounts" class="counts">확인 중</p>
+    <div class="actions"><button id="backup" type="button" class="button button-primary" disabled>보호 설정 백업 만들기</button><button id="saveBackup" type="button" class="button button-quiet" disabled>백업 파일 저장</button><button id="refreshCounts" type="button" class="button button-quiet" disabled>다시 확인</button></div>
+    <div id="backupResult" hidden><p class="help">계정별 보호 목록 확인값 (SHA-256)</p><p id="backupFingerprint" class="fingerprint"></p><details><summary>백업 JSON 직접 복사</summary><textarea id="backupText" readonly aria-label="보호 설정 백업 JSON" spellcheck="false"></textarea></details></div>
+    <p class="help">본인만 접근할 수 있는 폴더에 보관하세요. 저장 창이 나오지 않으면 브라우저 다운로드 폴더를 확인하세요. 소스 코드 폴더나 공개 저장소에는 넣지 마세요.</p>
+  </section>
+
+  <section class="panel" aria-labelledby="restoreHeading">
+    <h2 id="restoreHeading">2. 새 설치본에서 복원</h2>
+    <p>백업에 기록된 원래 계정별로 복원합니다. 새 설치본의 보호 목록도 유지하며, 겹치는 항목은 한 번만 저장합니다.</p>
+    <div class="actions"><label for="backupFile" class="field-label">백업 파일 선택</label><input id="backupFile" type="file" accept=".json,application/json" disabled></div>
+    <details><summary>JSON 직접 붙여넣기</summary><textarea id="importText" aria-label="복원할 보호 설정 JSON" placeholder="기존 설치본에서 복사한 백업 JSON" spellcheck="false" disabled></textarea><button id="previewText" type="button" class="button button-quiet" disabled>붙여넣은 백업 확인</button></details>
+    <div id="importPreview" class="preview" hidden><p id="incomingCounts"></p><p id="mergedCounts"></p><p class="help">백업 확인값</p><p id="incomingFingerprint" class="fingerprint"></p><div class="actions"><button id="restore" type="button" class="button button-primary" disabled>기존 보호 목록과 합쳐 복원</button></div></div>
+    <div id="verified" class="preview" hidden><strong>저장 후 보호 목록 확인 완료</strong><p id="verifiedCounts"></p><p id="verifiedFingerprint" class="fingerprint"></p><p class="help">모든 백업 항목이 저장됐습니다. 기존 목록이 비어 있었다면 백업 확인값과 복원 후 확인값이 같습니다. 기존 보호 항목이 더 있으면 합쳐진 결과의 확인값은 달라집니다.</p></div>
+    <p class="help">복원한 뒤 열려 있던 관리 탭을 닫고 다시 여세요. 조회 조건의 ‘중요 표시 보호’ 같은 체크박스는 관리 화면에서 다시 확인하세요.</p>
+  </section>
+
+  <section class="panel" aria-labelledby="pathHeading"><h2 id="pathHeading">설치 폴더를 바꾸는 순서</h2><ol class="steps"><li>기존 확장의 관리 화면에서 이 페이지를 열고 백업을 저장합니다.</li><li>Edge의 <code>edge://extensions</code>에서 ‘압축 풀린 확장 로드’로 새 버전의 <code>manifest.json</code>이 들어 있는 폴더를 선택합니다.</li><li>새 확장의 관리 화면 상단 ‘보호 설정 이전’을 열고 백업을 복원합니다.</li><li>복원 후 보호 항목 개수를 확인한 다음 기존 확장을 꺼 두고 새 확장을 사용합니다.</li></ol><p class="help">설치 폴더가 바뀌면 확장 ID와 설정 저장 영역이 달라질 수 있습니다. 기존 확장은 복원 결과를 확인하기 전까지 유지하세요.</p></section>
+</main>
+<script src="protection.js"></script>
+<script src="protection-transfer.js"></script>
+<script src="settings-transfer.js"></script>
+</body>
+</html>

@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>톡클라우드 정리</title>
+  <link rel="stylesheet" href="manager.css">
+</head>
+<body>
+<a class="skip-link" href="#previewHeading">조회 목록으로 건너뛰기</a>
+<main class="workspace cleaner-simple">
+  <header class="page-header">
+    <div class="brand"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M7 9h18v14H7zM7 14h18M12 19h8"/><path d="M12 6h8"/></svg></span><div><h1>톡클라우드 정리 <span class="version">0.7.2</span></h1><p class="intro">찾고, 고르고, 휴지통으로. 파일 저장은 필요할 때만.</p></div></div>
+    <div class="header-links"><a href="settings-transfer.html" target="_blank" rel="noopener" class="text-link">보호 설정 이전</a><a href="guide.html" target="_blank" rel="noopener" class="text-link">사용 안내</a></div>
+  </header>
+  <section class="connection" aria-label="연결 상태"><div class="connection-copy"><span class="connection-dot" aria-hidden="true"></span><p id="sourceStatus">연결 확인 전</p></div><div class="connection-actions"><a class="text-link" href="https://talkcloud.kakao.com/photo/all" target="_blank" rel="noopener noreferrer">톡클라우드 열기 ↗</a><button id="refresh" class="button button-text" type="button">연결 새로고침</button></div></section>
+  <div id="status" class="status" role="status" aria-live="polite" aria-atomic="true">날짜와 유형을 정하고 목록을 찾아보세요.</div>
+
+  <section class="panel criteria-panel" aria-labelledby="criteriaHeading">
+    <div class="section-heading"><h2 id="criteriaHeading"><span class="step">1</span> 항목 찾기</h2><span class="section-meta">조회만으로 삭제되지 않습니다</span></div>
+    <div class="simple-criteria">
+      <div class="field date-field"><label for="cutoff">이 날짜 이전</label><input id="cutoff" name="cutoff" type="date" required aria-describedby="cutoffHelp"><p id="cutoffHelp" class="help">올린 날짜 기준 · 선택한 당일 제외</p></div>
+      <fieldset class="type-options"><legend class="field-label">찾을 유형</legend><div class="checkbox-group">
+        <label class="type-chip" for="typesPhoto"><input id="typesPhoto" type="checkbox" checked><span>사진</span></label><label class="type-chip" for="includeGif"><input id="includeGif" type="checkbox" checked><span>GIF</span></label><label class="type-chip" for="typesVideo"><input id="typesVideo" type="checkbox"><span>동영상</span></label><label class="type-chip" for="typesFile"><input id="typesFile" type="checkbox"><span>파일</span></label><label class="type-chip" for="typesLink"><input id="typesLink" type="checkbox"><span>링크</span></label><label class="type-chip" for="typesCall"><input id="typesCall" type="checkbox"><span>통화녹음</span></label>
+      </div></fieldset>
+      <div class="scan-actions"><button id="scan" class="button button-primary" type="button">목록 찾기</button></div>
+    </div>
+    <p id="typeWarning" class="type-warning" role="status" hidden></p>
+    <details id="criteriaOptions" class="advanced-options criteria-options"><summary>조회 조건 더 보기</summary><div class="advanced-content">
+      <div class="criteria-grid"><div class="field size-field"><label for="minSizeMB">최소 파일 크기</label><div class="input-with-unit"><input id="minSizeMB" name="minSizeMB" type="number" min="0" step="0.1" value="0" aria-describedby="sizeHelp"><span>MB</span></div><p id="sizeHelp" class="help">0이면 제한 없음 · 링크에는 적용하지 않음</p></div><div class="room-scope"><label class="checkbox-label" for="includeLeft"><input id="includeLeft" type="checkbox" checked><span>나간 채팅방 포함</span></label><p class="help">통화녹음은 이 설정과 관계없이 전체 조회</p></div></div>
+      <div class="preset-row"><span class="field-label">유형 한 번에 선택</span><div class="preset-buttons"><button id="categoryAll" class="button button-small" type="button">모두</button><button id="categoryMedia" class="button button-small category-card" type="button" data-category="MEDIA" aria-pressed="true">사진·동영상</button><button id="categoryFile" class="button button-small category-card" type="button" data-category="FILE" aria-pressed="false">파일만</button><button id="categoryLink" class="button button-small category-card" type="button" data-category="LINK" aria-pressed="false">링크만</button><button id="categoryCall" class="button button-small category-card" type="button" data-category="CALL" aria-pressed="false">통화녹음만</button></div></div>
+      <p class="help">날짜는 한국시간 기준입니다. 사진 촬영일이 아닌 업로드일이며, 통화녹음은 녹음 시작일입니다.</p>
+    </div></details>
+    <details class="protection-section">
+          <summary class="protection-summary"><span id="protectionHeading" class="protection-title">남겨 둘 항목 보호하기</span><span class="protection-summary-counts">채팅방 <span class="count-badge" id="protectedRoomCount">—</span><span aria-hidden="true">·</span>항목 <span class="count-badge" id="protectedFileCount">—</span></span><span class="disclosure-label">펼쳐서 설정</span></summary>
+          <div class="protection-content" aria-labelledby="protectionHeading">
+            <div class="protection-heading"><label class="checkbox-label" for="protectStarred"><input id="protectStarred" type="checkbox" checked><span>중요 표시 항목 보호</span></label><span class="help">보호한 항목은 조회 목록에서 제외됩니다.</span></div>
+            <p id="protectionStatus" class="help">보호 목록은 카카오 계정별로 이 Edge에 저장되며, 다음 조회에도 적용됩니다.</p>
+            <div class="protection-grid">
+              <section class="protection-card" aria-labelledby="roomProtectionHeading"><div class="protection-card-heading"><h3 id="roomProtectionHeading">보호할 채팅방</h3><button id="loadRooms" class="button button-small" type="button">채팅방 불러오기</button></div><label class="visually-hidden" for="roomSearch">보호할 채팅방 검색</label><input id="roomSearch" type="search" autocomplete="off" placeholder="채팅방 이름 검색"><div id="roomList" class="protection-list room-list"><p class="list-placeholder">목록을 불러와 보호할 채팅방을 고르세요.</p></div><p id="roomStatus" class="help">선택한 채팅방을 모든 분류에서 보호합니다.</p></section>
+              <section class="protection-card" aria-labelledby="fileProtectionHeading"><div class="protection-card-heading"><h3 id="fileProtectionHeading">개별 항목 보호</h3><button id="clearProtectedFiles" class="button button-text" type="button">전체 보호 해제</button></div><p class="protection-description">목록의 <strong>보호</strong> 버튼으로 보관할 항목을 지정하세요.</p><div id="protectedFiles" class="protection-list"><p class="list-placeholder">보호한 항목이 여기에 표시됩니다.</p></div><p class="help">사진·파일·링크·통화녹음 모두 보호 가능</p></section>
+            </div>
+            <p class="protection-footnote">중요 표시 여부를 알 수 없는 항목도 보호합니다. 통화녹음에는 개별 항목·채팅방 보호만 적용합니다.</p>
+          </div>
+        </details>
+  </section>
+
+  <section class="panel results" aria-labelledby="previewHeading">
+    <div class="section-heading review-heading"><div><h2 id="previewHeading" tabindex="-1"><span class="step">2</span> 정리할 항목 고르기</h2><p class="section-description">왼쪽 체크박스로 선택하세요. 기본은 크기 큰 순입니다.</p></div><span class="section-meta">찾은 항목 <strong id="foundCount">—</strong>개</span></div>
+    <div class="simple-review-toolbar"><div class="field review-search"><label class="visually-hidden" for="reviewSearch">목록 검색</label><input id="reviewSearch" type="search" autocomplete="off" placeholder="이름 또는 채팅방 검색"></div><div class="segmented-control" role="group" aria-label="목록 보기 방식"><button id="viewFlat" type="button" aria-pressed="true">전체 목록</button><button id="viewRooms" type="button" aria-pressed="false">채팅방별</button></div><button id="largeFiles" class="button button-quiet" type="button">50 MB 이상 보기</button></div>
+    <details id="reviewOptions" class="advanced-options review-options"><summary>필터·정렬 더 보기</summary><div class="advanced-content">
+      <div class="review-filters"><div class="field"><label for="reviewRoom">채팅방</label><select id="reviewRoom"><option value="">전체 채팅방</option></select></div><div class="field review-size"><label for="reviewMinMB">이 크기 이상만 보기</label><div class="input-with-unit"><input id="reviewMinMB" type="number" min="0" step="0.1" value="0" aria-describedby="reviewFilterHelp"><span>MB</span></div></div><div class="field"><label for="reviewSort">정렬</label><select id="reviewSort" aria-label="목록 정렬"><option value="size-desc" selected>크기 큰 순</option><option value="size-asc">크기 작은 순</option><option value="date-desc">날짜 최신순</option><option value="date-asc">날짜 오래된 순</option><option value="name-asc">이름 오름차순</option><option value="name-desc">이름 내림차순</option><option value="room-asc">채팅방 오름차순</option><option value="room-desc">채팅방 내림차순</option><option value="kind-asc">유형 오름차순</option><option value="kind-desc">유형 내림차순</option></select></div></div>
+      <div class="advanced-actions"><label class="checkbox-label" for="reviewSelectedOnly"><input id="reviewSelectedOnly" type="checkbox"><span>선택한 항목만 보기</span></label><button id="resetReview" class="button button-text" type="button">필터 초기화</button><button id="reviewLoadRooms" class="button button-text" type="button">채팅방 이름 불러오기</button><button id="selectFiltered" class="button button-small" type="button">필터 결과 전체 선택</button></div>
+      <p id="reviewFilterHelp" class="help">이미 찾은 목록 안에서만 거릅니다. 정렬·필터·페이지를 바꿔도 선택은 유지됩니다.</p>
+      <dl class="metrics"><div class="metric"><dt>선택</dt><dd><span id="selectedCount">0</span><span class="unit">개</span></dd></div><div class="metric"><dt>선택 용량</dt><dd id="bytes">0 B</dd></div><div class="metric metric-range"><dt>선택 날짜 범위</dt><dd id="range">선택 항목 없음</dd></div></dl>
+      <div class="record-export"><button id="export" class="button button-quiet" type="button" disabled>목록 정보 저장 (.json)</button><span class="help">파일명·항목 ID·날짜 등 개인 목록 정보가 포함됩니다. 실제 파일은 저장하지 않으며, JSON을 공개 공유하지 마세요.</span></div>
+    </div></details>
+    <div class="review-list-heading"><div class="selection-actions"><button id="selectPage" class="button button-text" type="button">현재 페이지 선택</button><button id="clearSelection" class="button button-text" type="button">전체 선택 해제</button></div><p id="reviewSummary" class="page-info" role="status" aria-live="polite">목록 찾기를 먼저 눌러 주세요.</p></div>
+    <div class="group-actions"><button id="expandRooms" class="button button-text" type="button">채팅방 모두 펼치기</button><button id="collapseRooms" class="button button-text" type="button">모두 접기</button></div>
+    <p id="hiddenSelection" class="hidden-selection" role="status" aria-live="polite" hidden>현재 화면 밖에 선택한 항목도 포함됩니다.</p>
+    <div id="flatView" class="table-wrap" tabindex="0" role="region" aria-label="정리할 항목 목록, 가로로 스크롤할 수 있습니다" hidden><table class="preview-table"><thead><tr>
+          <th scope="col" class="check-col">선택</th>
+          <th id="sortHeaderName" scope="col" class="name-col" aria-sort="none"><button id="sortName" class="sort-button" type="button">이름</button></th>
+          <th id="sortHeaderRoom" scope="col" class="room-col" aria-sort="none"><button id="sortRoom" class="sort-button" type="button">채팅방</button></th>
+          <th id="sortHeaderDate" scope="col" aria-sort="none"><button id="sortDate" class="sort-button" type="button">기준 날짜</button></th>
+          <th id="sortHeaderSize" scope="col" aria-sort="descending"><button id="sortSize" class="sort-button" type="button">크기</button></th>
+          <th id="sortHeaderKind" scope="col" aria-sort="none"><button id="sortKind" class="sort-button" type="button">유형</button></th>
+          <th scope="col" class="protect-col">보호</th>
+        </tr></thead><tbody id="preview"></tbody></table></div>
+        <div id="groupPreview" class="group-preview" aria-label="채팅방별 조회 목록" hidden></div>
+        <div id="reviewEmpty" class="review-empty"><span class="empty-symbol" aria-hidden="true">☷</span><strong>찾은 항목이 여기에 표시됩니다</strong><p>위에서 날짜와 유형을 정한 뒤 ‘목록 찾기’를 누르세요.</p></div>
+        <div class="preview-toolbar"><p id="pageInfo" class="page-info" aria-live="polite">조회 전</p><nav class="pagination" aria-label="전체 목록 페이지"><button id="previewPrevious" class="button button-quiet" type="button" disabled>이전</button><button id="previewNext" class="button button-quiet" type="button" disabled>다음</button></nav></div>
+        
+    <p class="help preview-note">남겨 둘 항목은 ‘보호’를 누르면 다음 조회에도 제외됩니다.</p>
+  </section>
+
+  <aside class="selection-dock" aria-labelledby="selectionHeading"><div class="selection-dock-copy"><h2 id="selectionHeading"><span class="step">3</span> 선택한 항목 정리</h2><p id="selectionSummary" aria-live="polite">선택한 항목이 없습니다.</p><p id="executeBlockReason" class="execute-block-reason" role="status" aria-live="polite">위 목록에서 정리할 항목을 체크하세요.</p></div><div class="dock-actions"><button id="stop" class="button button-secondary" type="button" disabled>작업 중지</button><button id="openDownload" class="button button-secondary" type="button" disabled>PC에 저장 (선택)</button><button id="execute" class="button button-primary button-execute" type="button" disabled>휴지통으로 이동</button><p class="dock-note">파일을 저장하지 않고 바로 이동할 수 있습니다.</p></div></aside>
+
+  <section id="executeSection" class="panel execute-panel" aria-labelledby="executeHeading" hidden><div class="section-heading"><h2 id="executeHeading" tabindex="-1">휴지통 이동 진행</h2></div><p id="executeSummary" class="execute-summary" aria-live="polite">휴지통 이동 전입니다.</p><label class="visually-hidden" for="progress">휴지통 이동 진행률</label><progress id="progress" max="100" value="0">0%</progress><p class="help">100개씩 처리합니다. 중지하면 진행 중인 요청이 끝난 뒤 멈춥니다.</p></section>
+
+  <details id="downloadSection" class="panel download-panel"><summary id="downloadHeading" class="panel-summary"><span><strong>파일을 PC에 저장</strong><small>보관할 파일이 있을 때만 펼치세요</small></span><span class="optional-badge">선택사항</span></summary><div class="download-content">
+    <p id="downloadSummary" class="download-summary">저장할 파일을 선택해 주세요.</p><p class="help">사진·GIF·동영상·문서 등 일반 파일을 저장합니다. 통화녹음과 링크는 다운로드 대상이 아닙니다.</p>
+    <div class="download-actions"><button id="downloadPhotos" class="button button-primary" type="button" disabled>선택한 파일 원본 저장</button><button id="downloadStop" class="button button-secondary" type="button" disabled>다운로드 중지</button><button id="downloadFolder" class="button button-text" type="button">다운로드 폴더 열기 ↗</button></div>
+    <p class="help download-location">Edge의 다운로드 폴더에 저장합니다. 완료 후 파일이 잘 열리는지 확인해 주세요.</p>
+    <div class="download-progress"><label class="visually-hidden" for="downloadProgress">파일 다운로드 진행률</label><progress id="downloadProgress" value="0" max="1">0%</progress><p id="downloadStatus" class="help" role="status" aria-live="polite">목록에서 저장할 파일을 선택하세요.</p></div>
+    <div class="backup-preference"><label class="checkbox-label" for="backupBeforeTrash"><input id="backupBeforeTrash" type="checkbox" aria-describedby="backupBeforeTrashHelp"><span>다운로드가 끝날 때까지 휴지통 이동 막기</span></label><p id="backupBeforeTrashHelp" class="help">필요할 때만 켜세요. 사진·GIF·동영상·일반 파일에 적용하며 통화녹음·링크에는 적용하지 않습니다.</p></div>
+    <div class="download-footnote"><p class="help">‘원본’은 톡클라우드 보관 파일입니다. 전송 시 압축됐을 수 있습니다.<br>저장이 끝나도 자동으로 휴지통에 옮기지 않습니다. 결과 JSON에는 파일명이 포함되므로 공개 공유하지 마세요.</p><button id="downloadReport" class="button button-quiet" type="button" disabled title="파일명·크기·저장 결과를 기록하며 실제 파일은 포함하지 않습니다">다운로드 결과 기록 (.json)</button></div>
+  </div></details>
+
+  <details id="logSection" class="panel log-panel"><summary id="logHeading" class="panel-summary"><strong>작업 기록</strong></summary><pre id="log" tabindex="0" aria-label="실행 기록">아직 실행 기록이 없습니다.</pre></details>
+  <footer class="page-footer"><p>보관 기간과 저장 공간 반영은 <a href="https://talkcloud.kakao.com/trashcan" target="_blank" rel="noopener noreferrer">공식 휴지통 ↗</a>의 현재 안내를 확인하세요.</p><p>팀·드라이브 데이터는 이 도구에서 처리하지 않습니다. <a href="https://talkcloud.kakao.com/teamchat" target="_blank" rel="noopener noreferrer">팀 데이터 관리 ↗</a></p><p>개인용 비공식 확장 프로그램 · <a href="guide.html" target="_blank" rel="noopener">자세한 사용 안내</a></p></footer>
+</main>
+<script src="protocol.js"></script><script src="protection.js"></script><script src="review.js"></script><script src="download.js"></script><script src="manager.js"></script>
+</body>
+</html>
