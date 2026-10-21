@@ -2,7 +2,7 @@
 
 톡클라우드의 오래된 항목을 날짜·유형·크기로 찾아 직접 선택하고 휴지통으로 옮기는 Edge 확장 프로그램입니다. 사진·동영상·문서의 PC 저장은 선택사항입니다.
 
-**현재 버전: 0.7.2** · 카카오의 공식 프로그램이 아닙니다.
+**현재 버전: 0.7.3** · 카카오의 공식 프로그램이 아닙니다.
 
 ## 주요 기능
 
@@ -29,7 +29,7 @@ PC 저장의 ‘원본’은 톡클라우드가 제공하는 보관 파일입니
 
 ## 설치
 
-1. 실행용 ZIP 또는 소스 코드를 내려받아 계속 보관할 폴더에 압축을 풉니다.
+1. [최신 릴리스](https://github.com/git-jiwon/talkcloud-cleaner/releases/latest)에서 실행용 ZIP 또는 소스 코드를 내려받아 계속 보관할 폴더에 압축을 풉니다.
 2. Edge 주소창에 `edge://extensions`를 입력하고 **개발자 모드**를 켭니다.
 3. **압축 풀린 확장 로드**를 누르고 `manifest.json`이 들어 있는 폴더를 선택합니다.
    - 실행용 ZIP: 압축을 푼 폴더
@@ -95,4 +95,8 @@ node tools/build-public.cjs
 
 빌드는 허용 목록의 파일만 `releases`에 담고 기존 같은 버전의 배포본은 덮어쓰지 않습니다. 공개 파일 검사가 모든 개인정보를 자동 판별하는 것은 아니므로 실제 업로드할 내용도 검토해야 합니다. 테스트는 실제 계정 작업을 실행하지 않으며 서비스와의 통합 검증을 대신하지 않습니다.
 
-[릴리스 안내](docs/RELEASE_NOTES.md) · [개인정보 처리 안내](docs/PRIVACY.md) · [GitHub 배포 준비](docs/PUBLISHING.md)
+## 라이선스
+
+[MIT 라이선스](LICENSE)를 적용합니다. Copyright (c) 2026 git-jiwon. 설치용 ZIP과 소스 ZIP 모두 라이선스 원문을 포함합니다.
+
+[릴리스 안내](docs/RELEASE_NOTES.md) · [개인정보 처리 안내](docs/PRIVACY.md) · [GitHub 배포 안내](docs/PUBLISHING.md)

@@ -57,12 +57,15 @@ function buildPublic(root) {
   const names = [`talkcloud-cleaner-v${checked.version}.zip`, `talkcloud-cleaner-source-v${checked.version}.zip`,
     `public-manifest-v${checked.version}.json`];
   for (const name of names) if (fs.existsSync(path.join(output, name))) throw new Error(`Release already exists; nothing overwritten: ${name}`);
-  const runtime = makeZip(checked.runtimeFiles.map(relative => ({ path: relative.slice('extension/'.length), data: checked.contents.get(relative) })));
+  const runtimeEntries = checked.runtimeFiles.map(relative => ({ path: relative.slice('extension/'.length), data: checked.contents.get(relative) }));
+  if (checked.contents.has('LICENSE')) runtimeEntries.push({ path: 'LICENSE', data: checked.contents.get('LICENSE') });
+  const runtime = makeZip(runtimeEntries);
   const source = makeZip(checked.files.map(relative => ({ path: relative, data: checked.contents.get(relative) })));
   const archives = [runtime, source].map((data, index) => ({ file: names[index], bytes: data.length,
     sha256: crypto.createHash('sha256').update(data).digest('hex') }));
   const manifest = { version: checked.version, archives,
-    runtime: checked.manifestFiles.filter(file => checked.runtimeFiles.includes(file.path)).map(file => ({ ...file, path: file.path.slice('extension/'.length) })),
+    runtime: runtimeEntries.map(({ path, data }) => ({ path, bytes: data.length,
+      sha256: crypto.createHash('sha256').update(data).digest('hex') })),
     source: checked.manifestFiles };
   if (!fs.existsSync(output)) fs.mkdirSync(output);
   // Exclusive creation also rejects a file appearing after the existence check.

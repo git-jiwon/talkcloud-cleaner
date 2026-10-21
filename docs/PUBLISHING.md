@@ -1,4 +1,4 @@
-# GitHub 배포 준비
+# GitHub 배포 안내
 
 ## 저장소 소개
 
@@ -24,9 +24,9 @@ node tools/build-public.cjs
 
 | 결과 | 용도 |
 | --- | --- |
-| `releases/talkcloud-cleaner-v0.7.2.zip` | 사용자 설치용. 압축을 풀면 루트에 `manifest.json`이 있음 |
-| `releases/talkcloud-cleaner-source-v0.7.2.zip` | 공개 저장소 업로드용 소스·테스트·문서 |
-| `releases/public-manifest-v0.7.2.json` | 공개 패키지 파일 목록과 해시 |
+| `releases/talkcloud-cleaner-v0.7.3.zip` | 사용자 설치용. 압축을 풀면 루트에 `manifest.json`이 있음 |
+| `releases/talkcloud-cleaner-source-v0.7.3.zip` | 공개 저장소 업로드용 소스·테스트·문서 |
+| `releases/public-manifest-v0.7.3.json` | 공개 패키지 파일 목록과 해시 |
 
 전체 작업 폴더나 기존 ZIP을 그대로 업로드하지 마세요. `PROJECT.md`, `reference/`, 과거 배포본, 개인 설정 백업과 작업 기록은 공개 목록에 포함하지 않습니다. 새 버전에 파일을 추가하면 검사기와 `.gitignore`의 허용 목록도 함께 검토합니다. 파일명을 허용 목록에 넣는 것만으로 그 내용이 안전해지는 것은 아닙니다.
 
@@ -50,8 +50,8 @@ git diff --cached
 
 ## Release 만들기
 
-- 태그: `v0.7.2`
-- 제목: `톡클라우드 정리 0.7.2`
+- 태그: `v0.7.3`
+- 제목: `톡클라우드 정리 0.7.3`
 - 본문: [RELEASE_NOTES.md](RELEASE_NOTES.md)
 - 첨부: 새 설치용 ZIP과 공개 파일 해시 목록. 필요하면 공개 소스 ZIP도 첨부
 
@@ -59,4 +59,4 @@ GitHub 공개와 Edge 확장 스토어 등록은 별개입니다. 이 배포는 
 
 ## 라이선스
 
-공개 전에 적용할 라이선스와 표기할 저작권자 이름을 정하세요. 실명·개인 이메일 대신 공개용 이름을 사용할지 함께 확인합니다. 선택한 라이선스 원문은 루트의 `LICENSE`에 둡니다. 아직 선택하지 않았다면 임의로 MIT 또는 다른 라이선스를 적용하거나 해당 배지를 표시하지 않습니다. [GitHub 라이선스 추가 안내](https://docs.github.com/en/communities/setting-up-your-project-for-healthy-contributions/adding-a-license-to-a-repository)를 참고하세요.
+이 프로젝트는 [MIT 라이선스](../LICENSE)를 적용하며 저작권자 표기는 공개 계정명 `git-jiwon`입니다. 빌드는 루트의 `LICENSE` 원문을 설치용 ZIP과 소스 ZIP에 모두 포함합니다. 배포 시 라이선스 원문과 저작권 고지를 보존하세요.

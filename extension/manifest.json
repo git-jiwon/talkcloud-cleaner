@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "톡클라우드 정리",
-  "version": "0.7.2",
+  "version": "0.7.3",
   "description": "항목을 찾아 직접 선택하고 휴지통으로 정리하는 도구. 사진·동영상·문서 저장은 선택사항입니다.",
   "permissions": ["activeTab", "scripting", "downloads"],
   "action": { "default_title": "이 톡클라우드 탭으로 데이터 정리 열기" },

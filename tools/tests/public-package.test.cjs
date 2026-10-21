@@ -46,6 +46,9 @@ function readStoredZip(data) {
     const length = data.readUInt16LE(offset + 28);
     const name = data.subarray(offset + 46, offset + 46 + length).toString('utf8');
     assert.equal(data.readUInt32LE(offset + 42), result.get(name).offset);
+    assert.equal(data.readUInt32LE(offset + 16), crc32(result.get(name).contents));
+    assert.equal(data.readUInt32LE(offset + 20), result.get(name).contents.length);
+    assert.equal(data.readUInt32LE(offset + 24), result.get(name).contents.length);
     entries++; offset += 46 + length;
   }
   assert.equal(data.readUInt32LE(offset), 0x06054b50);
@@ -182,6 +185,32 @@ test('an optional license is included only when present and is scanned', () => {
   assert.equal(checkProject(root).files.includes('LICENSE'), true);
   fs.appendFileSync(path.join(root, 'LICENSE'), ['person', 'private-company.org'].join('@'));
   assert.throws(() => checkProject(root), /Publication content check failed/);
+  assert.throws(() => buildPublic(root), /Publication content check failed/);
+  assert.equal(fs.existsSync(path.join(root, 'releases')), false);
+});
+
+test('both release ZIPs include the checked root license with matching contents, CRC and manifest hashes', () => {
+  const root = fixture();
+  const license = Buffer.from('MIT License\n\nCopyright (c) 2026 Example contributors\n\nSynthetic license fixture.\n');
+  fs.writeFileSync(path.join(root, 'LICENSE'), license, { flag: 'wx' });
+  const result = buildPublic(root);
+  const savedManifest = JSON.parse(fs.readFileSync(path.join(root, 'releases', result.names[2]), 'utf8'));
+  assert.deepEqual(savedManifest, result.manifest);
+  for (const [index, section] of ['runtime', 'source'].entries()) {
+    const archive = savedManifest.archives[index];
+    const archiveBytes = fs.readFileSync(path.join(root, 'releases', archive.file));
+    const entries = readStoredZip(archiveBytes);
+    const expectedNames = index === 0 ? [...RUNTIME_FILES, 'LICENSE'].sort() : [...SOURCE_FILES, 'LICENSE'].sort();
+    assert.deepEqual([...entries.keys()].sort(), expectedNames);
+    assert.deepEqual(entries.get('LICENSE'), license);
+    assert.equal(entries.has('extension/LICENSE'), false);
+    assert.equal(archive.bytes, archiveBytes.length);
+    assert.equal(archive.sha256, crypto.createHash('sha256').update(archiveBytes).digest('hex'));
+    assert.deepEqual(savedManifest[section].map(file => file.path).sort(), expectedNames);
+    assert.deepEqual(savedManifest[section].find(file => file.path === 'LICENSE'), {
+      path: 'LICENSE', bytes: license.length, sha256: crypto.createHash('sha256').update(license).digest('hex')
+    });
+  }
 });
 
 test('ZIP bytes are deterministic and use the standard CRC32 checksum', () => {
