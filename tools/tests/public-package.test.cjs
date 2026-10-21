@@ -8,6 +8,7 @@ const os = require('node:os');
 const crypto = require('node:crypto');
 const { SOURCE_FILES, RUNTIME_FILES, safeRelative, readSafe, gitignoreText, findingsFor, checkProject } = require('../check-public.cjs');
 const { crc32, makeZip, buildPublic } = require('../build-public.cjs');
+const { ICON_SIZES, createIcon, generate } = require('../generate-icons.cjs');
 
 // Generated fixtures are retained for inspection. Set PUBLIC_TEST_TMPDIR to choose their parent.
 function fixture(version = '0.7.2') {
@@ -17,7 +18,12 @@ function fixture(version = '0.7.2') {
   for (const relative of SOURCE_FILES) {
     fs.mkdirSync(path.dirname(path.join(root, relative)), { recursive: true });
     let content = 'Synthetic public fixture.\n';
-    if (relative === 'extension/manifest.json') content = JSON.stringify({ manifest_version: 3, version });
+    if (relative === 'extension/manifest.json') {
+      const icons = Object.fromEntries(ICON_SIZES.map(size => [size, `icons/icon${size}.png`]));
+      content = JSON.stringify({ manifest_version: 3, version, icons, action: { default_icon: icons } });
+    }
+    const iconSize = ICON_SIZES.find(size => relative === `extension/icons/icon${size}.png`);
+    if (iconSize) content = createIcon(iconSize);
     if (relative === 'extension/manager.html' || relative === 'extension/guide.html') content = `<span class="version">${version}</span>`;
     if (relative === 'README.md' || relative === 'docs/RELEASE_NOTES.md') content = `Release ${version}\n`;
     if (relative === '.gitignore') content = gitignoreText();
@@ -218,4 +224,39 @@ test('ZIP bytes are deterministic and use the standard CRC32 checksum', () => {
   const input = [{ path: 'folder/한글.txt', data: 'UTF-8 test' }];
   assert.deepEqual(makeZip(input), makeZip(input));
   assert.equal(readStoredZip(makeZip(input)).get('folder/한글.txt').toString(), 'UTF-8 test');
+});
+
+test('icon binaries are preserved in both ZIPs and arbitrary bytes or image metadata block publishing', () => {
+  const root = fixture(), result = buildPublic(root);
+  for (let i = 0; i < 2; i++) {
+    const entries = readStoredZip(fs.readFileSync(path.join(root, 'releases', result.names[i])));
+    for (const size of ICON_SIZES) {
+      const name = `${i ? 'extension/' : ''}icons/icon${size}.png`;
+      assert.deepEqual(entries.get(name), createIcon(size));
+    }
+  }
+  fs.appendFileSync(path.join(root, 'extension/icons/icon16.png'), 'Synthetic private metadata');
+  assert.throws(() => checkProject(root), /Icon differs/);
+});
+
+test('incorrect toolbar icon mappings block packaging', () => {
+  const root = fixture(), file = path.join(root, 'extension/manifest.json');
+  const manifest = JSON.parse(fs.readFileSync(file));
+  manifest.action.default_icon['16'] = 'icons/icon128.png';
+  fs.writeFileSync(file, JSON.stringify(manifest));
+  assert.throws(() => buildPublic(root), /Manifest icon mapping mismatch/);
+});
+
+test('icon generator refuses linked or non-directory parents before any writes', () => {
+  const root = fixture();
+  for (const target of [root, path.join(root, 'extension'), path.join(root, 'extension', 'icons')]) {
+    for (const link of [true, false]) {
+      let writes = 0;
+      const io = { existsSync: fs.existsSync,
+        lstatSync(name) { return name === target ? { isSymbolicLink: () => link, isDirectory: () => false } : fs.lstatSync(name); },
+        mkdirSync() { writes++; }, writeFileSync() { writes++; } };
+      assert.throws(() => generate(root, io), /ordinary directory/);
+      assert.equal(writes, 0);
+    }
+  }
 });

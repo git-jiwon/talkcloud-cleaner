@@ -4,12 +4,14 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const { ICON_SIZES, createIcon } = require('./generate-icons.cjs');
+const ICON_FILES = Object.freeze(ICON_SIZES.map(size => `icons/icon${size}.png`));
 
 const RUNTIME_FILES = Object.freeze([
   'background.js', 'bridge.js', 'download.js', 'guide.html', 'manager.css',
   'manager.html', 'manager.js', 'manifest.json', 'protection-transfer.js',
   'protection.js', 'protocol.js', 'review.js', 'settings-transfer.html',
-  'settings-transfer.js'
+  'settings-transfer.js', ...ICON_FILES
 ]);
 const TEST_FILES = Object.freeze([
   'bridge-download.test.cjs', 'download-protocol.test.cjs', 'download.test.cjs',
@@ -21,7 +23,7 @@ const SOURCE_FILES = Object.freeze([
   'docs/RELEASE_NOTES.md', 'docs/PUBLISHING.md',
   ...RUNTIME_FILES.map(name => `extension/${name}`),
   ...TEST_FILES.map(name => `extension/tests/${name}`),
-  'tools/build-public.cjs', 'tools/check-public.cjs', 'tools/tests/public-package.test.cjs'
+  'tools/build-public.cjs', 'tools/check-public.cjs', 'tools/generate-icons.cjs', 'tools/tests/public-package.test.cjs'
 ].sort());
 const OPTIONAL_FILES = Object.freeze(['LICENSE']);
 
@@ -47,6 +49,12 @@ function readSafe(root, relative, io = fs) {
     }
   }
   const data = io.readFileSync(current);
+  const iconSize = ICON_SIZES.find(size => relative === `extension/icons/icon${size}.png`);
+  if (iconSize) {
+    // Exact generated artwork only: reject arbitrary images, extra chunks and metadata.
+    if (!data.equals(createIcon(iconSize))) throw new Error(`Icon differs from the reviewed generated artwork: ${relative}`);
+    return data;
+  }
   if (data.includes(0)) throw new Error(`Unexpected binary content: ${relative}`);
   if (!Buffer.from(data.toString('utf8'), 'utf8').equals(data)) throw new Error(`Invalid UTF-8 content: ${relative}`);
   return data;
@@ -117,7 +125,7 @@ function checkProject(root) {
     try { data = readSafe(base, relative); }
     catch (error) { throw new Error(`Public file check failed (${relative}): ${error.code || error.message}`); }
     contents.set(relative, data);
-    findings.push(...findingsFor(relative, data.toString('utf8')));
+    if (!ICON_FILES.some(file => relative === `extension/${file}`)) findings.push(...findingsFor(relative, data.toString('utf8')));
   }
   if (findings.length) {
     const error = new Error('Publication content check failed. Only file, line and rule are reported.');
@@ -131,6 +139,11 @@ function checkProject(root) {
   try { manifest = JSON.parse(contents.get('extension/manifest.json')); }
   catch { throw new Error('Invalid extension/manifest.json.'); }
   const version = manifest.version;
+  for (const key of ['icons', 'action']) {
+    const icons = key === 'icons' ? manifest.icons : manifest.action?.default_icon;
+    if (!icons || Object.keys(icons).length !== ICON_SIZES.length ||
+        ICON_SIZES.some(size => icons[size] !== `icons/icon${size}.png`)) throw new Error(`Manifest icon mapping mismatch: ${key}`);
+  }
   if (typeof version !== 'string' || !/^\d+\.\d+\.\d+(?:\.\d+)?$/.test(version)) throw new Error('Invalid release version.');
   for (const relative of ['extension/manager.html', 'extension/guide.html']) {
     const versions = [...contents.get(relative).toString('utf8').matchAll(/class="version"[^>]*>\s*([^<\s]+)\s*</g)].map(match => match[1]);

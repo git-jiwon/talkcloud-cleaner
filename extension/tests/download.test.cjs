@@ -69,6 +69,19 @@ test('document names preserve arbitrary extensions and videos keep their format 
   assert.equal(hostile.includes('..'), false);
   assert.match(hostile, /^TalkCloud-Backup\/20261021-123456\/000001_[^/\\<>:"|?*]+\.pdf$/);
 });
+test('long Unicode filenames fit Windows component limits without splitting surrogate pairs', () => {
+  const directory = 'TalkCloud-Backup/20261021-123456';
+  const filename = D.filename(photo({ verticalType: 'FILE', kind: 'file', name: '😀'.repeat(120) + '.properties' }), 0, directory);
+  const basename = filename.split('/').at(-1);
+  assert.ok(basename.length <= 255, 'The complete name must fit a Windows filename component');
+  assert.match(basename, /^000001_😀+\.properties$/u);
+  assert.equal(basename.isWellFormed(), true);
+
+  const boundary = D.filename(photo({ name: 'a'.repeat(119) + '😀.jpg' }), 1, directory);
+  assert.equal(boundary, `${directory}/000002_${'a'.repeat(119)}.jpg`);
+  assert.equal(boundary.isWellFormed(), true);
+});
+
 test('only HTTPS official host boundaries without credentials or custom ports pass', () => {
   assert.equal(D.validateUrl(URL_A), URL_A);
   assert.equal(D.validateUrl('https://talkcloud.kakao.com/photo?a=1'), 'https://talkcloud.kakao.com/photo?a=1');

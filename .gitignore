@@ -2,6 +2,7 @@
 *
 !/docs/
 !/extension/
+!/extension/icons/
 !/extension/tests/
 !/tools/
 !/tools/tests/
@@ -16,6 +17,10 @@
 !/extension/bridge.js
 !/extension/download.js
 !/extension/guide.html
+!/extension/icons/icon128.png
+!/extension/icons/icon16.png
+!/extension/icons/icon32.png
+!/extension/icons/icon48.png
 !/extension/manager.css
 !/extension/manager.html
 !/extension/manager.js
@@ -37,4 +42,5 @@
 !/extension/tests/settings-transfer.test.cjs
 !/tools/build-public.cjs
 !/tools/check-public.cjs
+!/tools/generate-icons.cjs
 !/tools/tests/public-package.test.cjs

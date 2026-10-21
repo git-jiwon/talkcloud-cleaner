@@ -24,9 +24,9 @@ node tools/build-public.cjs
 
 | 결과 | 용도 |
 | --- | --- |
-| `releases/talkcloud-cleaner-v0.7.3.zip` | 사용자 설치용. 압축을 풀면 루트에 `manifest.json`이 있음 |
-| `releases/talkcloud-cleaner-source-v0.7.3.zip` | 공개 저장소 업로드용 소스·테스트·문서 |
-| `releases/public-manifest-v0.7.3.json` | 공개 패키지 파일 목록과 해시 |
+| `releases/talkcloud-cleaner-v0.7.4.zip` | 사용자 설치용. 압축을 풀면 루트에 `manifest.json`이 있음 |
+| `releases/talkcloud-cleaner-source-v0.7.4.zip` | 공개 저장소 업로드용 소스·테스트·문서 |
+| `releases/public-manifest-v0.7.4.json` | 공개 패키지 파일 목록과 해시 |
 
 전체 작업 폴더나 기존 ZIP을 그대로 업로드하지 마세요. `PROJECT.md`, `reference/`, 과거 배포본, 개인 설정 백업과 작업 기록은 공개 목록에 포함하지 않습니다. 새 버전에 파일을 추가하면 검사기와 `.gitignore`의 허용 목록도 함께 검토합니다. 파일명을 허용 목록에 넣는 것만으로 그 내용이 안전해지는 것은 아닙니다.
 
@@ -50,8 +50,8 @@ git diff --cached
 
 ## Release 만들기
 
-- 태그: `v0.7.3`
-- 제목: `톡클라우드 정리 0.7.3`
+- 태그: `v0.7.4`
+- 제목: `카카오톡 톡클라우드 정리 0.7.4`
 - 본문: [RELEASE_NOTES.md](RELEASE_NOTES.md)
 - 첨부: 새 설치용 ZIP과 공개 파일 해시 목록. 필요하면 공개 소스 ZIP도 첨부
 

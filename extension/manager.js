@@ -548,8 +548,7 @@
     let accepted = 0, pending = 0;
     try {
       for (let i = 0; i < current.records.length; i += P.CHUNK) {
-        if (stopped) throw new Error('사용자가 중지했습니다.');
-        if (S.signature(S.read(localStorage, current.criteria.account)) !== current.protectionSignature) throw new Error('보호 설정이 바뀌어 중단했습니다.');
+        checkPlan(current);
         const records = current.records.slice(i, i + P.CHUNK);
         if (requiresBackup) await verifySaved(current, records);
         pending = records.length;

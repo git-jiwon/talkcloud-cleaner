@@ -880,6 +880,35 @@ test("a plan older than one hour cannot be executed", async () => {
   assert.match(h.elements.status.textContent, /1시간/);
 });
 
+test("a plan that expires while its confirmation is open cannot send a trash request", async () => {
+  let h;
+  h = await legacyHarness({ count: 1, confirm() { h.advanceTime(3600001); return true; } });
+  await h.click("scan"); await h.click("selectFiltered");
+  await h.click("execute");
+
+  assert.equal(h.confirmations.length, 1);
+  assert.equal(h.trashCalls().length, 0);
+  assert.equal(h.remaining(), 1);
+  assert.equal(h.elements.execute.disabled, true);
+  assert.match(h.elements.status.textContent, /1시간/);
+  assert.match(h.elements.status.textContent, /기존 목록은 참고용/);
+});
+
+test("a plan that expires after an accepted batch sends no later trash requests", async () => {
+  let h;
+  h = await legacyHarness({ count: 205, onTrash(_options, count) {
+    if (count === 1) h.advanceTime(3600001);
+  } });
+  await h.click("scan"); await h.click("selectFiltered");
+  await h.click("execute");
+
+  assert.deepEqual(h.trashCalls().map(call => call.options.records.length), [100]);
+  assert.equal(h.remaining(), 105);
+  assert.equal(h.elements.execute.disabled, true);
+  assert.match(h.elements.status.textContent, /1시간/);
+  assert.doesNotMatch(h.elements.status.textContent, /사라진 것을 확인/);
+});
+
 const rawPhoto = (id, patch = {}) => ({ id, drawerId: `drawer-${id}`, contentType: "IMAGE", createdAt: Date.parse("2020-01-01T00:00:00+09:00"), mimeType: "image/jpeg", bookmarked: false, size: 2048, hashedChatId: "room-open", ...patch });
 
 test("raw MIME mismatch pages continue, count unique exclusions, and keep normal items selectable", async () => {
@@ -979,7 +1008,7 @@ test("protection changes between batches prevent later POSTs", async () => {
   } });
   await h.click("scan"); await h.click("selectFiltered"); await h.click("execute");
   assert.deepEqual(h.trashCalls().map(c => c.options.records.length), [100]);
-  assert.match(h.elements.status.textContent, /보호 설정이 바뀌어/);
+  assert.match(h.elements.status.textContent, /보호 설정이 바뀌/);
 });
 
 test("category presets select the exact type and recording scans once with page numbers", async () => {

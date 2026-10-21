@@ -47,7 +47,14 @@
     const match = name.match(record.kind === 'file' ? /\.[^.]{1,24}$/ : record.kind === 'video' ? VIDEO_EXTENSION : IMAGE_EXTENSION);
     const extension = record.kind === 'file' ? match?.[0] || '' : record.kind === 'gif' ? '.gif' : match ? match[0].toLowerCase() : record.kind === 'video' ? '.mp4' : '.jpg';
     const stem = match ? name.slice(0, -match[0].length) : name;
-    name = [...stem].slice(0, 120).join('').replace(/[. ]+$/g, '') || 'file';
+    // Windows counts UTF-16 units in filename limits. Keep whole Unicode characters
+    // while leaving room for the numbered prefix, extension and duplicate suffix.
+    let shortened = '';
+    for (const character of stem) {
+      if (shortened.length + character.length > 120) break;
+      shortened += character;
+    }
+    name = shortened.replace(/[. ]+$/g, '') || 'file';
     return `${directory}/${String(index + 1).padStart(6, '0')}_${name}${extension}`;
   }
   function validateUrl(value) {

@@ -1,10 +1,32 @@
 {
   "manifest_version": 3,
-  "name": "톡클라우드 정리",
-  "version": "0.7.3",
-  "description": "항목을 찾아 직접 선택하고 휴지통으로 정리하는 도구. 사진·동영상·문서 저장은 선택사항입니다.",
-  "permissions": ["activeTab", "scripting", "downloads"],
-  "action": { "default_title": "이 톡클라우드 탭으로 데이터 정리 열기" },
-  "background": { "service_worker": "background.js" },
-  "content_security_policy": { "extension_pages": "script-src 'self'; object-src 'none'; connect-src 'none'" }
+  "name": "카카오톡 톡클라우드 정리",
+  "version": "0.7.4",
+  "description": "카카오톡 톡클라우드의 사진·동영상·파일을 찾아 선택하고 휴지통으로 정리하는 비공식 도구. PC 저장은 선택사항입니다.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "downloads"
+  ],
+  "action": {
+    "default_title": "카카오톡 톡클라우드 정리 열기",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; connect-src 'none'"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
 }
