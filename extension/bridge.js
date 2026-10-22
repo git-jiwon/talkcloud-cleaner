@@ -59,6 +59,17 @@
       if (await account() !== criteria.account) throw new Error('사진 정보를 확인하는 동안 계정이 바뀌었습니다.');
       return result;
     },
+    async previewPhoto(options) {
+      const { record, criteria } = options || {};
+      if (!criteria?.account) throw new Error('조회할 때의 카카오 계정을 확인하지 못해 미리보기를 중단했습니다.');
+      const url = P.photoDetailUrl(record);
+      if (await account() !== criteria.account)
+        throw new Error('조회할 때의 카카오 계정과 달라 미리보기를 중단했습니다.');
+      const detail = await request(url);
+      const result = P.parsePhotoPreview(detail, record, criteria);
+      if (await account() !== criteria.account) throw new Error('사진 정보를 확인하는 동안 계정이 바뀌었습니다.');
+      return result;
+    },
     async trash(options) {
       const body = P.trashBody(options.records, options.cutoff, options);
       if (!options.account || await account() !== options.account)

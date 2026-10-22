@@ -5,6 +5,9 @@
   const S = globalThis.TalkCleanerProtection;
   const R = globalThis.TalkCleanerReview;
   const D = globalThis.TalkCleanerDownload;
+  const W = globalThis.TalkCleanerWorkspace;
+  const O = globalThis.TalkCleanerOnboarding;
+  const V = globalThis.TalkCleanerPreview;
   const tabId = Number(new URLSearchParams(location.search).get('tabId'));
   let busy = false, stopped = false, ready = false, plan = null, logLines = [], pageIndex = 0;
   let jobKind = null, downloadRun = null, lastTrashSummary = '', reviewNeedsRefresh = false;
@@ -18,6 +21,9 @@
   const presets = { categoryMedia: ['photo', 'gif', 'video'], categoryFile: ['file'], categoryLink: ['link'], categoryCall: ['recording'], categoryAll: typeFields.map(([,kind]) => kind) };
   const kindLabels = { photo: '사진', gif: 'GIF', video: '동영상', file: '파일', link: '링크', recording: '통화 녹음' };
   let protectionAccount = null, protection = { version: 1, files: [], rooms: [] }, rooms = new Map();
+  let workspaceAccount = null, workspaceCriteria = null, workspaceToken = null, workspaceBlocked = false;
+  let outcomes = [], rememberedSelection = [], previewRequest = 0, previewFocus = null;
+  const version = globalThis.chrome?.runtime?.getManifest?.().version_name || globalThis.chrome?.runtime?.getManifest?.().version || '1.0.0-rc.1';
   const selectedRecords = () => plan ? R.selected(plan.records, selectedIds) : [];
   const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
   const formatSize = value => {
@@ -26,7 +32,157 @@
     while (value >= 1024 && u < units.length - 1) { value /= 1024; u++; }
     return `${value.toLocaleString('ko-KR', { maximumFractionDigits: 2 })} ${units[u]}`;
   };
-  function status(message) { $('status').textContent = message; }
+  function status(message) {
+    $('status').textContent = message;
+    const help = O.describe(message, { informational: !/실패|중단|확인하지 못|끊|바뀌|지났|유효하지|만료|지원하지|필요합니다|없습니다|오류|로그인/.test(message) });
+    $('recoveryHelp').hidden = help.action === 'none';
+    $('recoveryHelpText').textContent = help.message;
+    $('recoveryAction').textContent = help.actionLabel;
+    $('recoveryAction').setAttribute('data-action', help.action);
+  }
+  function sameCriteria(a, b) {
+    const plain = c => [c.cutoff, [...c.kinds].sort(), c.minBytes, c.protectStarred, c.includeGif, c.includeLeft];
+    return JSON.stringify(plain(a)) === JSON.stringify(plain(b));
+  }
+  function openWorkspace(account) {
+    if (workspaceAccount === account && !workspaceBlocked) return;
+    const changed = workspaceAccount !== account;
+    closePreview(); outcomes = []; rememberedSelection = []; workspaceCriteria = null; savedFiles.clear();
+    if (changed) { downloadRun = null; invalidate(); }
+    workspaceAccount = account; workspaceBlocked = false;
+    try { workspaceToken = localStorage.getItem(W.key(account)); const old = W.read(localStorage, account, Date.now()); outcomes = old?.outcomes || []; }
+    catch (error) { workspaceBlocked = true; throw error; }
+  }
+  function checkpoint(required = false) {
+    if (!workspaceAccount || !workspaceCriteria) {
+      if (required) throw new Error('작업 기록을 준비하지 못했습니다. 목록을 다시 조회하세요.');
+      return true;
+    }
+    try {
+      if (workspaceBlocked || localStorage.getItem(W.key(workspaceAccount)) !== workspaceToken)
+        throw new Error('다른 관리 화면에서 작업 기록이 바뀌었거나 기록을 읽지 못했습니다. 이전 작업을 다시 불러오세요.');
+      if (plan) rememberedSelection = selectedRecords().map(record => ({ id: record.id, fingerprint: W.fingerprint(record) }));
+      const downloads = [...savedFiles].map(([recordKey, receipt]) => ({ recordKey, ...receipt, filename: receipt.filename.split(/[\\/]/).at(-1) }));
+      W.write(localStorage, workspaceAccount, { criteria: workspaceCriteria, selection: rememberedSelection,
+        view: { search: $('reviewSearch').value, room: $('reviewRoom').value, minMB: $('reviewMinMB').value,
+          selectedOnly: $('reviewSelectedOnly').checked, sort: $('reviewSort').value, mode: reviewView }, downloads, outcomes }, Date.now());
+      workspaceToken = localStorage.getItem(W.key(workspaceAccount));
+      $('workspaceStatus').textContent = '이 계정의 조건·선택·저장 기록을 최근 7일간 이 Edge에 보관합니다.';
+      return true;
+    } catch (error) {
+      $('workspaceStatus').textContent = `작업 기록 저장 중단: ${error.message}`;
+      if (required) throw error;
+      return false;
+    }
+  }
+  function beginOutcome(type, records, criteria) {
+    const outcome = { type, startedAt: Date.now(), finishedAt: null, criteria,
+      items: records.map(record => ({ id: record.id, name: record.name || kindLabels[record.kind], kind: record.kind, size: record.size,
+        fingerprint: W.fingerprint(record), state: 'not-started' })) };
+    outcomes = [...outcomes, outcome].slice(-2); renderOutcomes(); return outcome;
+  }
+  function markOutcome(outcome, records, state) {
+    const ids = new Set(records.map(record => record.id));
+    for (const item of outcome.items) if (ids.has(item.id)) item.state = state;
+  }
+  function reconcileOutcome(outcome, result) {
+    if (outcome.type !== 'trash') return;
+    for (const item of outcome.items) if (['requested', 'uncertain', 'pending', 'failed'].includes(item.state))
+      item.state = result.ids.has(item.id) ? 'failed' : 'verified';
+    outcome.finishedAt = Date.now();
+  }
+  function reconcileDownloads(outcome, current) {
+    const byId = new Map(current.records.map(record => [record.id, record]));
+    for (const item of outcome.items) {
+      const record = byId.get(item.id);
+      const valid = record && D.eligible(record) && item.fingerprint === W.fingerprint(record) &&
+        savedFiles.has(D.receiptKey(current.criteria.account, record));
+      if (valid) item.state = 'verified';
+      else if (item.state !== 'not-started') item.state = 'failed';
+    }
+    outcome.finishedAt = Date.now();
+  }
+  function renderOutcomes() {
+    $('outcomeSection').hidden = !outcomes.length;
+    $('outcomeList').replaceChildren();
+    const labels = { verified: '완료 확인', requested: '서버 요청됨 · 재확인 필요', uncertain: '결과 확인 필요', pending: '결과 확인 필요', failed: '다시 확인 필요', 'not-started': '아직 시작하지 않음' };
+    for (const outcome of [...outcomes].reverse()) {
+      const card = document.createElement('section'), heading = document.createElement('h3'), counts = document.createElement('p');
+      const done = outcome.items.filter(item => item.state === 'verified').length;
+      heading.textContent = outcome.type === 'trash' ? '휴지통 이동' : 'PC 저장';
+      counts.textContent = `전체 ${outcome.items.length.toLocaleString()}개 · 완료 확인 ${done.toLocaleString()}개 · 확인·진행 필요 ${(outcome.items.length - done).toLocaleString()}개`;
+      card.append(heading, counts);
+      const details = document.createElement('details'), summary = document.createElement('summary'), list = document.createElement('ul');
+      summary.textContent = '항목별 결과 보기'; details.append(summary);
+      for (const item of outcome.items.slice(0, 100)) {
+        const row = document.createElement('li'); row.textContent = `${item.name || kindLabels[item.kind]} · ${labels[item.state]}`; list.append(row);
+      }
+      if (outcome.items.length > 100) { const note = document.createElement('li'); note.textContent = '화면에는 앞 100개만 표시합니다. 전체 내용은 결과 기록으로 저장할 수 있습니다.'; list.append(note); }
+      details.append(list); card.append(details);
+      const retry = button(outcome.type === 'trash' ? '결과 재확인·남은 항목 선택' : '저장 기록 확인·남은 파일 선택', () => retryOutcome(outcome));
+      retry.disabled = busy; card.append(retry); $('outcomeList').append(card);
+    }
+  }
+  function applyCriteria(criteria) {
+    $('cutoff').value = criteria.cutoff; $('minSizeMB').value = String(criteria.minBytes / 1024 / 1024);
+    $('protectStarred').checked = criteria.protectStarred; $('includeLeft').checked = criteria.includeLeft;
+    for (const [id, kind] of typeFields) $(id).checked = criteria.kinds.includes(kind);
+  }
+  async function restoreReceipts(state, current) {
+    const keys = new Set(D.files(current.records).map(record => D.receiptKey(current.criteria.account, record)));
+    for (const stored of state.downloads || []) {
+      if (!keys.has(stored.recordKey)) continue;
+      checkPlan(current);
+      try {
+        const found = await chrome.downloads.search({ id: stored.downloadId });
+        if (found.length !== 1 || found[0].filename.split(/[\\/]/).at(-1) !== stored.filename) continue;
+        const receipt = await D.checkReceipt(chrome.downloads, { ...stored, state: 'complete', filename: found[0].filename });
+        checkPlan(current); savedFiles.set(stored.recordKey, receipt);
+      } catch (_) { /* Old records never bypass current browser download verification. */ }
+    }
+    if (await call('account') !== current.criteria.account) throw new Error('카카오 계정이 바뀌었습니다. 다시 조회하세요.');
+    checkPlan(current);
+  }
+  async function restoreWorkspace() {
+    if (busy || !ready) return;
+    busy = true; update();
+    let state;
+    try {
+      const account = await call('account'); openWorkspace(account); loadProtection(account);
+      state = W.read(localStorage, account, Date.now());
+      if (!state) { status('이 계정에 최근 7일 이내의 작업이 없습니다. 날짜와 유형을 정해 새로 조회하세요.'); return; }
+      state = { ...state, account }; applyCriteria(state.criteria);
+    } catch (error) { status(error.message); return; }
+    finally { busy = false; update(); }
+    await scan(state);
+  }
+  async function retryOutcome(outcome) {
+    if (busy || !ready || !outcome.criteria || !workspaceAccount) return;
+    let state;
+    try { state = W.read(localStorage, workspaceAccount, Date.now()); } catch (error) { status(error.message); return; }
+    applyCriteria(outcome.criteria);
+    await scan({ ...(state || {}), account: workspaceAccount, criteria: outcome.criteria, retry: outcome,
+      downloads: state?.downloads || [], selection: [], view: { sort: 'size-desc', mode: 'flat' } });
+  }
+  function closePreview() {
+    previewRequest++; $('photoPreviewImage').removeAttribute('src'); $('photoPreviewImage').hidden = true;
+    $('photoPreview').hidden = true; previewFocus?.focus?.(); previewFocus = null;
+  }
+  async function showPreview(record, control) {
+    if (busy || !plan || !V.eligible(record)) return;
+    const current = plan, request = ++previewRequest; previewFocus = control;
+    $('photoPreview').hidden = false; $('photoPreviewTitle').textContent = record.name || '사진 미리보기';
+    $('photoPreviewImage').removeAttribute('src'); $('photoPreviewImage').hidden = true;
+    $('photoPreviewStatus').textContent = '썸네일을 불러오는 중… 원본 파일을 저장하지 않습니다.'; $('closePhotoPreview').focus();
+    try {
+      checkPlan(current);
+      const result = V.validateResult(await call('previewPhoto', { record, criteria: current.criteria }), record);
+      checkPlan(current);
+      if (request !== previewRequest || plan !== current) return;
+      $('photoPreviewImage').src = result.url; $('photoPreviewImage').hidden = false;
+      $('photoPreviewStatus').textContent = '톡클라우드 썸네일입니다. 촬영 원본과 화질이 다를 수 있습니다.';
+    } catch (error) { if (request === previewRequest) $('photoPreviewStatus').textContent = error.message; }
+  }
   function log(message) {
     logLines.push(`[${new Date().toLocaleTimeString('ko-KR')}] ${message}`);
     $('log').textContent = logLines.slice(-300).join('\n');
@@ -77,15 +233,23 @@
       const selectedKinds = typeFields.filter(([id]) => $(id).checked).map(([,kind]) => kind);
       $(name).setAttribute('aria-pressed', String(name === 'categoryAll' ? selectedKinds.length === kinds.length : selectedKinds.length > 0 && selectedKinds.every(kind => kinds.includes(kind))));
     }
+    $('restoreWorkspace').disabled = busy || !ready;
+    $('forgetWorkspace').disabled = busy || !ready;
+    $('exportOutcomes').disabled = busy || !outcomes.length;
+    renderOutcomes();
+    if (!busy && plan) checkpoint();
   }
   function invalidate() {
+    closePreview();
     $('reviewSearch').value = ''; $('reviewRoom').value = ''; $('reviewMinMB').value = '0'; $('reviewSelectedOnly').checked = false; $('reviewSort').value = 'size-desc';
     $('downloadProgress').max = 1; $('downloadProgress').value = 0;
     $('downloadStatus').textContent = downloadRun ? '새 목록에서는 저장 완료 확인을 다시 진행합니다. 이전에 PC에 저장한 파일은 유지됩니다.' : '2단계에서 항목을 체크한 뒤 ‘선택한 파일 저장’을 누르세요.';
     plan = null; lastTrashSummary = ''; reviewNeedsRefresh = false; savedFiles.clear(); selectedIds.clear(); expandedRooms.clear(); roomPages.clear(); pageIndex = 0; $('typeWarning').textContent = ''; $('typeWarning').hidden = true; render([]); update();
   }
   function loadProtection(account) {
-    if (protectionAccount !== account) rooms = new Map();
+    if (protectionAccount !== account) {
+      rooms = new Map(); protectionAccount = null; protection = { version: 1, files: [], rooms: [] }; renderProtection();
+    }
     protection = S.read(localStorage, account); protectionAccount = account; renderProtection();
   }
   function roomName(record) {
@@ -280,12 +444,18 @@
       checkbox.setAttribute('aria-label', `${record.date} ${record.name || kindLabels[record.kind]} 선택`);
       checkbox.addEventListener('change', () => selectionChange([record], checkbox.checked));
       selectCell.append(checkbox); tr.append(selectCell);
-      for (const text of [record.name || '(이름 미제공)', roomName(record), record.date, record.kind === 'link' ? '용량 집계 제외' : formatSize(record.size), kindLabels[record.kind]]) {
-        const td = document.createElement('td'); td.textContent = text; td.title = text; tr.append(td);
+      for (const [index, text] of [record.name || '(이름 미제공)', roomName(record), record.date, record.kind === 'link' ? '용량 집계 제외' : formatSize(record.size), kindLabels[record.kind]].entries()) {
+        const td = document.createElement('td'); td.textContent = text; td.title = text;
+        if (index === 0 && V.eligible(record)) {
+          const preview = button('미리보기', () => showPreview(record, preview), 'button button-text preview-photo');
+          preview.setAttribute('data-photo-preview', record.id); preview.setAttribute('aria-label', `${record.name || '사진'} 미리보기`); td.append(preview);
+        }
+        tr.append(td);
       }
       const protectCell = document.createElement('td'), protect = document.createElement('button');
       protect.type = 'button'; protect.className = 'button button-quiet'; protect.textContent = '보호';
       protect.setAttribute('data-record-id', record.id);
+      protect.setAttribute('data-record-protect', record.id);
       protect.setAttribute('aria-label', `${record.name || kindLabels[record.kind]} 계속 보호`);
       protect.addEventListener('click', () => protectFile(record));
       protectCell.append(protect); tr.append(protectCell);
@@ -386,7 +556,7 @@
     for (const name of ['Name', 'Room', 'Date', 'Size', 'Kind']) $('sortHeader' + name).setAttribute('aria-sort', field === name.toLowerCase() ? direction === 'asc' ? 'ascending' : 'descending' : 'none');
     restoreReviewFocus(focused);
   }
-  $('scan').addEventListener('click', async () => {
+  async function scan(restore = null) {
     if (busy) return;
     let kinds, minBytes;
     try {
@@ -399,8 +569,11 @@
     invalidate(); busy = true; stopped = false; update(); $('progress').value = 0;
     try {
       const account = await call('account'); loadProtection(account);
+      openWorkspace(account);
+      if (restore && restore.account !== account) throw new Error('카카오 계정이 바뀌었습니다. 이전 작업을 불러오지 않았습니다.');
       const criteria = Object.freeze({ cutoff: $('cutoff').value, kinds: Object.freeze(kinds), minBytes, protectStarred: $('protectStarred').checked, includeGif: $('includeGif').checked, includeLeft: $('includeLeft').checked, account, ...S.filters(protection) });
-      const { records, typeMismatchCount, unknownRoomCount } = await collect(criteria, '목록 찾는 중');
+      const result = await collect(criteria, restore ? '이전 작업의 최신 상태 확인 중' : '목록 찾는 중');
+      const { records, typeMismatchCount, unknownRoomCount } = result;
       if (stopped) throw new Error('중지했습니다. 다시 조회하세요.');
       if (S.signature(S.read(localStorage, account)) !== S.signature(protection)) throw new Error('조회 중 보호 설정이 바뀌었습니다. 다시 조회하세요.');
       const signature = S.signature(protection);
@@ -414,13 +587,37 @@
         }
       }
       plan = Object.freeze({ criteria, records: Object.freeze(records), createdAt: Date.now(), protectionSignature: signature, typeMismatchCount, unknownRoomCount });
+      workspaceCriteria = criteria;
+      let restoreNote = '';
+      if (restore) {
+        const fingerprints = new Map((restore.selection || []).map(item => [item.id, item.fingerprint]));
+        for (const record of records) if (fingerprints.get(record.id) === W.fingerprint(record)) selectedIds.add(record.id);
+        const view = restore.view || {};
+        $('reviewSearch').value = view.search || ''; $('reviewRoom').value = view.room || '';
+        $('reviewMinMB').value = view.minMB || '0'; $('reviewSelectedOnly').checked = !!view.selectedOnly;
+        $('reviewSort').value = view.sort || 'size-desc'; reviewView = view.mode || 'flat';
+        await restoreReceipts(restore, plan);
+        for (const outcome of outcomes) if (outcome.criteria && sameCriteria(outcome.criteria, criteria)) {
+          if (outcome.type === 'download') reconcileDownloads(outcome, plan); else reconcileOutcome(outcome, result);
+        }
+        if (restore.retry) {
+          const wanted = new Map(restore.retry.items.filter(item => item.state !== 'verified' && item.fingerprint).map(item => [item.id, item.fingerprint]));
+          selectedIds.clear();
+          for (const record of records) if (wanted.get(record.id) === W.fingerprint(record)) {
+            if (restore.retry.type === 'download' && (!D.eligible(record) || savedFiles.has(D.receiptKey(account, record)))) continue;
+            selectedIds.add(record.id);
+          }
+        }
+        restoreNote = ` 이전 선택 ${selectedIds.size.toLocaleString()}개와 현재 확인된 저장 기록 ${savedFiles.size.toLocaleString()}개를 불러왔습니다. 변경되거나 보호된 항목은 자동 선택하지 않습니다. 실행하려면 목록을 확인한 뒤 버튼을 눌러 주세요.`;
+      }
       render(records);
       showScanWarnings(plan);
       log(`${criteria.cutoff} 이전 ${criteria.kinds.map(k => kindLabels[k]).join('·')} ${records.length.toLocaleString()}개 조회 완료. 삭제 요청 없음.`);
-      status(records.length ? `${records.length.toLocaleString()}개를 찾았습니다. 정리할 항목을 체크한 뒤 ‘휴지통으로 이동’을 누르세요.${roomWarning}` : '조건에 맞는 항목이 없습니다. 중요 표시 여부를 확인할 수 없는 항목도 보호 옵션에 따라 제외됩니다.');
+      status((records.length ? `${records.length.toLocaleString()}개를 찾았습니다. 정리할 항목을 체크한 뒤 ‘휴지통으로 이동’을 누르세요.${roomWarning}` : '조건에 맞는 항목이 없습니다. 중요 표시 여부를 확인할 수 없는 항목도 보호 옵션에 따라 제외됩니다.') + restoreNote);
     } catch (error) { plan = null; status(error.message); log(error.message); }
     finally { busy = false; update(); }
-  });
+  }
+  $('scan').addEventListener('click', () => scan());
   function checkPlan(current) {
     if (stopped) throw new Error('사용자가 중지했습니다.');
     if (Date.now() - current.createdAt > 3600000) throw new Error('조회 후 1시간이 지났습니다. 최신 목록을 다시 조회하세요.');
@@ -455,13 +652,16 @@
     busy = true; stopped = false; jobKind = 'download';
     const directory = D.folder();
     downloadRun = { startedAt: new Date().toISOString(), folder: directory, requested: records.length, items: [] };
+    const outcome = beginOutcome('download', records, current.criteria);
     $('downloadProgress').max = records.length; $('downloadProgress').value = 0; update();
     let completed = 0;
     try {
+      checkpoint(true);
       for (let index = 0; index < records.length; index++) {
         checkPlan(current);
         if (plan !== current) throw new Error('조회 조건이 바뀌었습니다. 다시 조회하세요.');
         const record = records[index], key = D.receiptKey(current.criteria.account, record);
+        markOutcome(outcome, [record], 'uncertain'); checkpoint(true);
         let receipt = savedFiles.get(key), reused = false;
         if (receipt) {
           try { receipt = await D.checkReceipt(chrome.downloads, receipt); reused = true; }
@@ -485,6 +685,7 @@
         if (await call('account') !== current.criteria.account) throw new Error('카카오 계정이 바뀌어 저장 확인을 중단했습니다. 다시 조회하세요.');
         checkPlan(current);
         savedFiles.set(key, receipt); completed++;
+        markOutcome(outcome, [record], 'verified'); checkpoint();
         // Keep absolute browser paths only in the in-memory receipt used for verification.
         // Reports need the saved basename, including a browser-added duplicate suffix.
         const savedName = receipt.filename.split(/[\\/]/).at(-1);
@@ -497,6 +698,7 @@
       status('파일 저장이 끝났습니다. 정리가 필요하면 선택 요약의 ‘휴지통으로 이동’을 누르세요.');
       log(`파일 ${completed.toLocaleString()}개 다운로드 완료 확인. 휴지통 이동 요청 없음.`);
     } catch (error) {
+      for (const item of outcome.items) if (item.state === 'uncertain') item.state = 'failed';
       // Browser errors can include signed URLs or local paths; never export their raw text.
       downloadRun.error = '다운로드가 완료되지 않았습니다. 관리 화면에서 중단 이유를 확인하세요.';
       $('downloadStatus').textContent = `저장 중단: ${error.message} 완료 확인 ${completed.toLocaleString()} / ${records.length.toLocaleString()}개. 이미 저장된 파일은 유지됩니다.`;
@@ -504,6 +706,7 @@
       log(`파일 저장 중단. 완료 확인 ${completed.toLocaleString()}개. 휴지통 이동 요청 없음.`);
     } finally {
       downloadRun.finishedAt = new Date().toISOString();
+      outcome.finishedAt = Date.now(); checkpoint();
       busy = false; jobKind = null; update();
     }
   });
@@ -542,6 +745,9 @@
     const hiddenCount = chosen.filter(record => !visibleIds.has(record.id)).length;
     const selectedKinds = [...new Set(chosen.map(record => record.kind))].map(kind => kindLabels[kind]).join(', ');
     if (!confirm(`선택한 ${summary(chosen)}를 휴지통으로 옮길까요?\n종류: ${selectedKinds}\n기준: ${current.criteria.cutoff} 이전${hiddenCount ? `\n현재 화면에 보이지 않는 선택 ${hiddenCount.toLocaleString()}개도 포함됩니다.` : ''}\n\n파일 다운로드는 실행하지 않습니다. 영구 삭제는 하지 않습니다.`)) return;
+    closePreview();
+    const outcome = beginOutcome('trash', chosen, current.criteria);
+    rememberedSelection = chosen.map(record => ({ id: record.id, fingerprint: W.fingerprint(record) }));
     lastTrashSummary = `처리 대상: ${summary(chosen)} · ${selectedKinds}`;
     $('progress').value = 0;
     busy = true; stopped = false; jobKind = 'trash'; plan = null; update();
@@ -552,7 +758,10 @@
         const records = current.records.slice(i, i + P.CHUNK);
         if (requiresBackup) await verifySaved(current, records);
         pending = records.length;
+        markOutcome(outcome, records, 'uncertain');
+        try { checkpoint(true); } catch (error) { markOutcome(outcome, records, 'not-started'); pending = 0; throw error; }
         await call('trash', { ...current.criteria, records });
+        markOutcome(outcome, records, 'requested'); checkpoint();
         accepted += records.length; pending = 0;
         $('progress').value = accepted / current.records.length * 100;
         status(`서버 요청 성공 ${accepted.toLocaleString()} / ${current.records.length.toLocaleString()}개 · 완료 후 재조회합니다.`);
@@ -562,6 +771,7 @@
       if (stopped) throw new Error('사용자가 중지했습니다.');
       const remaining = await collect(current.criteria, '처리 결과 재조회 중');
       checkPlan(current);
+      reconcileOutcome(outcome, remaining); checkpoint();
       const plannedIds = new Set(current.records.map(r => r.id));
       const left = [...remaining.ids].filter(id => plannedIds.has(id)).length;
       if (left) throw new Error(`재조회에서 대상 ${left}개가 남아 있습니다. 새로 조회해 확인하세요.`);
@@ -579,6 +789,7 @@
       const message = `중단: ${error.message} 요청 성공 ${accepted.toLocaleString()}개${pending ? `, 마지막 ${pending}개는 결과 미확정` : ''}. 기존 목록은 참고용으로 남겨 두었습니다. ‘목록 찾기’를 눌러 다시 조회하여 현재 상태를 확인하세요.`;
       status(message); log(message);
     } finally {
+      outcome.finishedAt = Date.now(); checkpoint();
       busy = false; jobKind = null; selectedIds.clear();
       $('reviewSelectedOnly').checked = false;
       render(plan ? plan.records : reviewed.records); update();
@@ -672,8 +883,52 @@
       ({ id, createdAt, date, size, name, roomId, joined, bookmarked, verticalType, kind }));
     saveJson({ criteria, records, createdAt: plan.createdAt }, `talkcloud-before-${plan.criteria.cutoff}.json`);
   });
+  $('restoreWorkspace').addEventListener('click', restoreWorkspace);
+  $('forgetWorkspace').addEventListener('click', async () => {
+    if (busy || !ready || !confirm('이 계정의 조건·선택·작업 기록을 지울까요? 보호 목록과 PC에 저장한 파일은 유지됩니다.')) return;
+    busy = true; update();
+    try {
+      const account = await call('account');
+      W.clear(localStorage, account); workspaceAccount = null; workspaceCriteria = null; workspaceToken = null; workspaceBlocked = false;
+      outcomes = []; rememberedSelection = []; invalidate();
+      $('workspaceStatus').textContent = '이 계정의 작업 기록을 지웠습니다. 보호 목록과 다운로드한 파일은 유지됩니다.';
+    } catch (error) { status(error.message); }
+    finally { busy = false; update(); }
+  });
+  $('exportOutcomes').addEventListener('click', () => {
+    if (busy || !outcomes.length) return;
+    saveJson({ version: 1, outcomes: outcomes.map(({ type, startedAt, finishedAt, items }) => ({ type, startedAt, finishedAt,
+      items: items.map(({ id, name, kind, size, state }) => ({ id, name, kind, size, state })) })) }, 'talkcloud-results.json');
+  });
+  $('closePhotoPreview').addEventListener('click', closePreview);
+  $('photoPreviewImage').addEventListener('error', () => {
+    $('photoPreviewImage').removeAttribute('src'); $('photoPreviewImage').hidden = true;
+    $('photoPreviewStatus').textContent = '이미지를 표시하지 못했습니다. 로그인 상태를 확인하거나 원본 저장을 사용하세요.';
+  });
+  $('photoPreview').addEventListener('keydown', event => {
+    if (event.key === 'Escape') { event.preventDefault(); closePreview(); }
+    if (event.key === 'Tab') { event.preventDefault(); $('closePhotoPreview').focus(); }
+  });
+  $('acknowledgeIntro').addEventListener('click', () => {
+    try { O.acknowledge(localStorage, version); $('firstRunSection').hidden = true; }
+    catch (error) { status(error.message); }
+  });
+  $('showIntro').addEventListener('click', () => { $('firstRunSection').hidden = false; $('acknowledgeIntro').focus(); });
+  $('recoveryAction').addEventListener('click', () => {
+    const action = $('recoveryAction').getAttribute('data-action');
+    if (busy) return;
+    if (action === 'scan') return scan();
+    if (action === 'settings') { $('workspaceSection').scrollIntoView?.({ behavior: 'smooth' }); return; }
+    const url = action === 'source' ? 'https://talkcloud.kakao.com/photo/all' : chrome.runtime?.getURL?.('guide.html');
+    if (url) chrome.tabs.create({ url });
+  });
   addEventListener('beforeunload', event => { if (busy) { event.preventDefault(); event.returnValue = ''; } });
   addEventListener('storage', event => {
+    if (workspaceAccount && event.key === W.key(workspaceAccount)) {
+      workspaceBlocked = true; closePreview();
+      if (busy) stopped = true; else { plan = null; reviewNeedsRefresh = true; update(); }
+      status('다른 관리 화면에서 작업 기록이 바뀌었습니다. 이전 작업을 다시 불러온 뒤 현재 상태를 확인하세요.'); return;
+    }
     if (!protectionAccount || event.key !== S.key(protectionAccount)) return;
     if (busy) { stopped = true; status('다른 창에서 보호 설정이 바뀌어 중지를 요청했습니다.'); }
     else { invalidate(); try { loadProtection(protectionAccount); status('보호 설정이 바뀌었습니다. 다시 조회하세요.'); } catch (error) { status(error.message); } }
@@ -683,6 +938,13 @@
     render([]);
     renderProtection();
     update();
+    try {
+      const intro = O.inspect(localStorage, version);
+      $('firstRunSection').hidden = !intro.firstRun && !intro.updated;
+      $('introTitle').textContent = intro.updated ? `${version} 업데이트 안내` : '처음 사용하시나요?';
+      $('introSteps').replaceChildren();
+      for (const step of O.steps) { const item = document.createElement('li'); item.textContent = `${step.title}: ${step.message}`; $('introSteps').append(item); }
+    } catch (error) { status(error.message); }
     if (!globalThis.chrome?.scripting || !Number.isSafeInteger(tabId) || tabId <= 0) {
       $('sourceStatus').textContent = '엣지의 톡클라우드 탭에서 확장 프로그램 아이콘을 눌러 열어 주세요.';
       status('일반 웹페이지에서는 실행되지 않습니다. 확장 프로그램으로 설치해 사용하세요.'); return;

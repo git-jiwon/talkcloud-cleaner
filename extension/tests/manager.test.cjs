@@ -8,6 +8,9 @@ const protocol = require("../protocol.js");
 const protection = require("../protection.js");
 const review = require("../review.js");
 const download = require("../download.js");
+const workspace = require("../workspace.js");
+const onboarding = require("../onboarding.js");
+const preview = require("../preview.js");
 const source = fs.readFileSync(path.join(__dirname, "../manager.js"), "utf8");
 const html = fs.readFileSync(path.join(__dirname, "../manager.html"), "utf8");
 
@@ -33,6 +36,7 @@ class Element {
   append(...children) { for (const child of children) child.parentElement = this; this.children.push(...children); }
   setAttribute(name, value) { this.attributes.set(name, value); }
   getAttribute(name) { return this.attributes.get(name) ?? null; }
+  removeAttribute(name) { this.attributes.delete(name); if (name === 'src') this.src = ''; }
   replaceChildren(...children) { for (const child of this.children) child.parentElement = null; this.children = []; this.append(...children); }
   focus(options) { assert.ok(this.ownerDocument, "Focus target must belong to the mock document"); this.ownerDocument.activeElement = this; this.focusOptions = options; }
   scrollIntoView(options) { this.scrollOptions = options; }
@@ -65,6 +69,7 @@ function deferred() {
 
 async function harness(config = {}) {
   const documentState = { activeElement: null };
+  const globalListeners = new Map();
   const elements = Object.fromEntries([...html.matchAll(/\bid="([^"]+)"/g)].map(match => [match[1], new Element(match[1], documentState)]));
   for (const match of html.matchAll(/<[a-z][^>]*\bid="([^"]+)"[^>]*>/gi)) {
     elements[match[1]].hidden = /\bhidden(?:\s|=|>)/.test(match[0]);
@@ -76,7 +81,7 @@ async function harness(config = {}) {
   }
   if (typeof config.backupBeforeTrash === "boolean") elements.backupBeforeTrash.checked = config.backupBeforeTrash;
   const calls = [];
-  const downloadCalls = [], downloadSearches = [], downloadCancels = [], downloadItems = new Map();
+  const downloadCalls = [], downloadSearches = [], downloadCancels = [], downloadItems = config.downloadItems || new Map();
   const downloadSources = new Map();
   let folderOpened = 0;
   const confirmations = [];
@@ -115,6 +120,9 @@ async function harness(config = {}) {
     TalkCleanerProtection: protection,
     TalkCleanerReview: review,
     TalkCleanerDownload: download,
+    TalkCleanerWorkspace: workspace,
+    TalkCleanerOnboarding: onboarding,
+    TalkCleanerPreview: preview,
     localStorage,
     URLSearchParams,
     Blob,
@@ -124,7 +132,10 @@ async function harness(config = {}) {
       revokeObjectURL() {}
     },
     confirm(message) { confirmations.push(message); return typeof config.confirm === "function" ? config.confirm(message) : config.confirm !== false; },
-    addEventListener() {},
+    addEventListener(type, callback) {
+      if (!globalListeners.has(type)) globalListeners.set(type, []);
+      globalListeners.get(type).push(callback);
+    },
     setTimeout(callback) { queueMicrotask(callback); return 1; },
     chrome: {
       tabs: { async reload() {} },
@@ -179,6 +190,15 @@ async function harness(config = {}) {
               if (config.onReadRooms) await config.onReadRooms(options, calls);
               if (config.roomsError) throw new Error(config.roomsError);
               value = { rooms: config.rooms || [], skipped: 0 };
+            } else if (method === "previewPhoto") {
+              assert.ok(preview.eligible(options.record), "Only photos and GIFs may request a thumbnail");
+              if (config.onPreview) await config.onPreview(options, calls);
+              if (config.previewError) throw new Error(config.previewError);
+              const record = options.record;
+              value = typeof config.preview === 'function' ? config.preview(options, calls) : config.preview || {
+                id: record.id, name: record.name, kind: record.kind, source: 'thumbnail',
+                url: `https://dn.talk.kakao.com/${encodeURIComponent(record.id)}-small.jpg?` + 'signature=synthetic-preview-value'
+              };
             } else if (method === "originalFile") {
               assert.equal(options.criteria.account, "account-one");
               assert.ok(download.eligible(options.record), "Only supported file types may request a download URL");
@@ -228,10 +248,13 @@ async function harness(config = {}) {
     remaining: () => active.length,
     replaceRecords: records => { active = records; },
     checkboxes: previewCheckboxes,
-    protectButtons: () => walk(elements.preview).filter(node => node.id === "button"),
+    protectButtons: () => walk(elements.preview).filter(node => node.getAttribute('data-record-protect')),
+    previewButtons: () => walk(elements.preview).filter(node => node.getAttribute('data-photo-preview')),
     roomCheckboxes: () => walk(elements.roomList).filter(node => node.type === "checkbox"),
     grouped: () => walk(elements.groupPreview),
+    outcomeButtons: () => walk(elements.outcomeList).filter(node => node.id === 'button'),
     groupControl: (attribute, key) => walk(elements.groupPreview).find(node => node.getAttribute(attribute) === key),
+    globalEvent: async (type, event) => { for (const handler of globalListeners.get(type) || []) await handler(event); },
     advanceTime: ms => { clock += ms; }
   };
   assert.equal(elements.scan.disabled, false);
@@ -1520,4 +1543,387 @@ test("remaining files retain matching download receipts while changed metadata r
   await h.click("execute");
   assert.equal(h.remaining(), 0);
   assert.equal(h.elements.foundCount.textContent, "0");
+});
+
+test('reopening restores criteria, selection and review controls only after fresh read-only queries', async () => {
+  const storage = new Map(), records = photoRecords(3).map(record => ({ ...record, roomId: 'example-room', joined: true }));
+  const first = await harness({ storage, records, rooms: [{ id: 'example-room', name: '예시 채팅방' }] });
+  first.elements.cutoff.value = '2023-05-01';
+  first.elements.protectStarred.checked = false;
+  await first.click('scan'); await selectRecord(first, 'photo-0001');
+  first.elements.reviewSearch.value = 'photo'; await first.input('reviewSearch');
+  first.elements.reviewRoom.value = 'room:example-room'; await first.change('reviewRoom');
+  first.elements.reviewMinMB.value = '0.0001'; await first.input('reviewMinMB');
+  first.elements.reviewSort.value = 'name-asc'; await first.change('reviewSort');
+  await first.click('viewRooms');
+  const second = await harness({ storage, records, rooms: [{ id: 'example-room', name: '예시 채팅방' }] });
+  assert.equal(second.calls.length, 0, 'Opening the manager does not request account or list data');
+  assert.equal(second.elements.selectedCount.textContent, '0');
+  await second.click('restoreWorkspace');
+  assert.equal(second.elements.cutoff.value, '2023-05-01');
+  assert.equal(second.elements.protectStarred.checked, false);
+  assert.equal(second.elements.selectedCount.textContent, '1');
+  assert.equal(second.elements.reviewSearch.value, 'photo');
+  assert.equal(second.elements.reviewRoom.value, 'room:example-room');
+  assert.equal(second.elements.reviewMinMB.value, '0.0001');
+  assert.equal(second.elements.reviewSort.value, 'name-asc');
+  assert.equal(second.elements.viewRooms.getAttribute('aria-pressed'), 'true');
+  assert.ok(second.calls.some(call => call.method === 'readPage'));
+  assert.ok(second.calls.some(call => call.method === 'readRooms'));
+  assert.equal(second.trashCalls().length, 0);
+  assert.equal(second.downloadCalls.length, 0);
+  assert.match(second.elements.status.textContent, /이전 선택 1개/);
+});
+
+test('reopening never reselects changed metadata or newly protected files and rooms', async () => {
+  const storage = new Map(), records = photoRecords(5).map((record, index) => ({ ...record, roomId: `room-${index}`, joined: true }));
+  const first = await harness({ storage, records });
+  await first.click('scan'); await first.click('selectFiltered');
+  protection.write(first.localStorage, 'account-one', { version: 1,
+    files: [{ id: 'photo-0001', name: '새로 보호한 파일' }], rooms: [{ id: 'room-2', name: '새로 보호한 방' }] });
+  const changed = records.map((record, index) => index === 0 ? { ...record, name: 'renamed.jpg' } : index === 3 ? { ...record, joined: false } : record);
+  const second = await harness({ storage, records: changed });
+  await second.click('restoreWorkspace');
+  assert.equal(second.elements.foundCount.textContent, '3');
+  assert.equal(second.elements.selectedCount.textContent, '1');
+  assert.deepEqual(second.checkboxes().filter(node => node.checked).map(node => node.getAttribute('data-record-id')), ['photo-0004']);
+  assert.equal(second.trashCalls().length, 0);
+});
+
+test('a different account cannot display another account selection, outcomes or saved receipts', async () => {
+  const storage = new Map();
+  const first = await harness({ storage, count: 1 });
+  await first.click('scan'); await first.click('selectFiltered'); await first.click('downloadPhotos');
+  const original = storage.get(workspace.key('account-one'));
+  const second = await harness({ storage, count: 1, accountAt: () => 'account-two', downloadItems: first.downloadItems });
+  await second.click('restoreWorkspace');
+  assert.equal(second.elements.selectedCount.textContent, '0');
+  assert.equal(second.elements.outcomeSection.hidden, true);
+  assert.equal(second.elements.exportOutcomes.disabled, true);
+  assert.equal(second.downloadSearches.length, 0);
+  assert.equal(second.calls.filter(call => call.method === 'readPage').length, 0);
+  assert.match(second.elements.status.textContent, /이 계정에.*작업이 없습니다/);
+  assert.equal(storage.get(workspace.key('account-one')), original);
+});
+
+test('reopened download receipts qualify only after current browser verification', async () => {
+  const storage = new Map(), records = photoRecords(2);
+  const first = await harness({ storage, records });
+  await first.click('scan'); await first.click('selectFiltered'); await first.click('downloadPhotos');
+  const saved = workspace.read(first.localStorage, 'account-one');
+  assert.equal(saved.downloads.length, 2);
+  assert.ok(saved.downloads.every(item => !/[\\/]/.test(item.filename)));
+  const second = await harness({ storage, records, backupBeforeTrash: true, downloadItems: first.downloadItems });
+  await second.click('restoreWorkspace');
+  assert.match(second.elements.downloadSummary.textContent, /파일 2개.*확인한 항목 2개/);
+  assert.equal(second.elements.execute.disabled, false);
+  assert.ok(second.downloadSearches.length >= 4, 'Each receipt searches and verifies current metadata');
+  assert.equal(second.downloadCalls.length, 0);
+  assert.equal(second.calls.filter(call => call.method === 'originalFile').length, 0);
+  assert.equal(second.trashCalls().length, 0);
+});
+
+test('missing or moved browser download records cannot qualify as completed on restore', async () => {
+  for (const change of ['missing', 'renamed', 'unsafe', 'different-bytes']) {
+    const storage = new Map(), records = photoRecords(1);
+    const first = await harness({ storage, records });
+    await first.click('scan'); await first.click('selectFiltered'); await first.click('downloadPhotos');
+    const items = new Map(first.downloadItems);
+    if (change === 'missing') items.clear();
+    else {
+      const old = items.get(1);
+      items.set(1, { ...old, ...(change === 'renamed' ? { filename: 'different.jpg' } : change === 'unsafe' ? { finalUrl: 'https://example.test/untrusted' } : { fileSize: 9999, bytesReceived: 9999 }) });
+    }
+    const second = await harness({ storage, records, backupBeforeTrash: true, downloadItems: items });
+    await second.click('restoreWorkspace');
+    assert.match(second.elements.downloadSummary.textContent, /확인한 항목 0개/);
+    assert.equal(second.elements.execute.disabled, true);
+    assert.equal(second.downloadCalls.length, 0);
+    assert.equal(second.trashCalls().length, 0);
+    await second.outcomeButtons()[0].click();
+    assert.equal(second.elements.selectedCount.textContent, '1', 'A formerly verified receipt that is now missing must be selectable for a manual retry');
+    assert.equal(second.downloadCalls.length, 0, 'Checking a saved outcome never automatically downloads again');
+    assert.equal(second.trashCalls().length, 0);
+  }
+});
+
+test('partial trash journals distinguish requested, uncertain and not-started batches before retry', async () => {
+  const h = await harness({ count: 205, failTrashAt: 2 });
+  await h.click('scan'); await h.click('selectFiltered'); await h.click('execute');
+  const before = workspace.read(h.localStorage, 'account-one').outcomes.at(-1);
+  const count = state => before.items.filter(item => item.state === state).length;
+  assert.equal(count('requested'), 100);
+  assert.equal(count('uncertain'), 100);
+  assert.equal(count('not-started'), 5);
+  assert.equal(h.trashCalls().length, 2);
+  assert.equal(h.outcomeButtons().length, 1);
+  await h.outcomeButtons()[0].click();
+  assert.equal(h.trashCalls().length, 2, 'Result verification never automatically repeats a POST');
+  assert.equal(h.elements.foundCount.textContent, '105');
+  assert.equal(h.elements.selectedCount.textContent, '105');
+  const after = workspace.read(h.localStorage, 'account-one').outcomes.at(-1);
+  assert.equal(after.items.filter(item => item.state === 'verified').length, 100);
+  assert.equal(after.items.filter(item => item.state === 'failed').length, 100);
+  assert.equal(after.items.filter(item => item.state === 'not-started').length, 5);
+});
+
+test('retry excludes a record whose metadata changed after the interrupted request', async () => {
+  const h = await harness({ count: 3, failTrashAt: 1 });
+  await h.click('scan'); await h.click('selectFiltered'); await h.click('execute');
+  h.replaceRecords(photoRecords(3).map((record, index) => index === 1 ? { ...record, name: 'changed-after-request.jpg' } : record));
+  await h.outcomeButtons()[0].click();
+  assert.equal(h.trashCalls().length, 1);
+  assert.equal(h.elements.selectedCount.textContent, '2');
+  assert.deepEqual(h.checkboxes().filter(node => node.checked).map(node => node.getAttribute('data-record-id')).sort(), ['photo-0000', 'photo-0002']);
+});
+
+test('another manager checkpoint blocks the older manager before its first trash POST', async () => {
+  const storage = new Map(), first = await harness({ storage, count: 2 });
+  await first.click('scan'); await selectRecord(first, 'photo-0000');
+  const second = await harness({ storage, count: 2 }); await second.click('scan');
+  const latest = storage.get(workspace.key('account-one'));
+  await first.click('execute');
+  assert.equal(first.trashCalls().length, 0);
+  assert.match(first.elements.status.textContent, /다른 관리 화면.*기록/);
+  assert.equal(storage.get(workspace.key('account-one')), latest, 'The earlier tab does not overwrite the newer checkpoint');
+});
+
+test('a storage event from another manager makes the prior plan read-only without a POST', async () => {
+  const h = await harness({ count: 2 });
+  await h.click('scan'); await h.click('selectFiltered');
+  await h.globalEvent('storage', { key: workspace.key('account-one') });
+  assert.equal(h.elements.execute.disabled, true);
+  assert.match(h.elements.status.textContent, /다른 관리 화면/);
+  await h.elements.execute.dispatch('click');
+  assert.equal(h.trashCalls().length, 0);
+});
+
+test('corrupt saved work remains untouched and blocks lookup plans and trash until explicit clearing', async () => {
+  const raw = '{synthetic-corrupt-record', storage = new Map([[workspace.key('account-one'), raw]]);
+  const h = await harness({ storage, count: 1 });
+  await h.click('scan'); await h.elements.execute.dispatch('click');
+  assert.equal(h.calls.filter(call => call.method === 'readPage').length, 0);
+  assert.equal(h.trashCalls().length, 0);
+  assert.equal(storage.get(workspace.key('account-one')), raw);
+  assert.match(h.elements.status.textContent, /원본 기록을 보존/);
+  await h.click('forgetWorkspace'); await h.click('scan');
+  assert.equal(h.elements.foundCount.textContent, '1');
+});
+
+test('a quota failure prevents a trash POST and preserves the prior checkpoint', async () => {
+  class QuotaStorage extends Map {
+    set(key, value) { if (this.fail && key.startsWith('talkcloud-workspace-v1:')) throw new Error('synthetic storage quota'); return super.set(key, value); }
+  }
+  const storage = new QuotaStorage(), h = await harness({ storage, count: 1 });
+  await h.click('scan'); await h.click('selectFiltered');
+  const before = storage.get(workspace.key('account-one')); storage.fail = true;
+  await h.click('execute');
+  assert.equal(h.trashCalls().length, 0);
+  assert.equal(storage.get(workspace.key('account-one')), before);
+  assert.match(h.elements.status.textContent, /저장하지 못했습니다/);
+});
+
+test('first-run acknowledgement and explicit workspace clearing preserve protection and actual downloaded files', async () => {
+  const storage = new Map(), h = await harness({ storage, count: 1 });
+  protection.write(h.localStorage, 'account-one', { version: 1, files: [{ id: 'protected-not-selected', name: '보호 예시' }], rooms: [] });
+  const before = storage.get(protection.key('account-one'));
+  assert.equal(h.elements.firstRunSection.hidden, false);
+  await h.click('acknowledgeIntro');
+  assert.equal(h.elements.firstRunSection.hidden, true);
+  assert.equal(storage.get(protection.key('account-one')), before);
+  assert.equal(h.calls.length, 0);
+  await h.click('scan'); await h.click('selectFiltered'); await h.click('downloadPhotos');
+  const actualFile = { ...h.downloadItems.get(1) };
+  await h.click('forgetWorkspace');
+  assert.equal(workspace.read(h.localStorage, 'account-one'), null);
+  assert.equal(storage.get(protection.key('account-one')), before);
+  assert.deepEqual(h.downloadItems.get(1), actualFile);
+  assert.equal(h.elements.outcomeSection.hidden, true);
+  assert.equal(h.elements.selectedCount.textContent, '0');
+});
+
+test('result JSON omits account, raw URLs, absolute paths and underlying errors', async () => {
+  const records = photoRecords(1).map(record => ({ ...record,
+    url: 'https://example.test/photo?' + 'token=synthetic-outcome-secret', extra: 'synthetic-private-metadata' }));
+  const rawError = ['Synthetic failure', 'https://example.test/?' + 'token=synthetic-error-secret', ['C:', 'Users', 'SyntheticUser', 'private.jpg'].join('\\')].join(' ');
+  const h = await harness({ records, onTrash: async () => { throw new Error(rawError); } });
+  await h.click('scan'); await h.click('selectFiltered'); await h.click('downloadPhotos'); await h.click('execute');
+  await h.click('exportOutcomes');
+  const text = await h.exports.at(-1).text(), result = JSON.parse(text);
+  assert.equal(result.outcomes.length, 2);
+  assert.doesNotMatch(text, /account-one|synthetic-outcome-secret|synthetic-error-secret|synthetic-private-metadata|MockDownloads|SyntheticUser|https?:|[A-Z]:/);
+  assert.deepEqual(Object.keys(result), ['version', 'outcomes']);
+  assert.ok(result.outcomes.every(run => run.items.every(item => Object.keys(item).every(key => ['id', 'name', 'kind', 'size', 'state'].includes(key)))));
+});
+
+test('retry uses its original search criteria after a newer lookup changed the visible conditions', async () => {
+  const h = await harness({ count: 1, failTrashAt: 1 });
+  await h.click('scan'); await h.click('selectFiltered'); await h.click('execute');
+  h.elements.cutoff.value = '2025-03-01'; await h.change('cutoff'); await h.click('scan');
+  assert.equal(h.calls.filter(call => call.method === 'readPage').at(-1).options.cutoff, '2025-03-01');
+  await h.outcomeButtons()[0].click();
+  assert.equal(h.elements.cutoff.value, '2024-01-01');
+  assert.equal(h.calls.filter(call => call.method === 'readPage').at(-1).options.cutoff, '2024-01-01');
+  assert.equal(h.elements.selectedCount.textContent, '1');
+  assert.equal(h.trashCalls().length, 1);
+});
+
+test('every POST is preceded by a persisted uncertain journal and a changed checkpoint stops later batches', async () => {
+  const storage = new Map(); let first, second;
+  first = await harness({ storage, count: 205, onTrash: async (_options, number) => {
+    const persisted = workspace.read(first.localStorage, 'account-one').outcomes.at(-1);
+    assert.equal(persisted.items.filter(item => item.state === 'uncertain').length, 100);
+    assert.equal(persisted.items.filter(item => item.state === 'not-started').length, 105);
+    assert.equal(number, 1);
+    second = await harness({ storage, count: 205 }); await second.click('scan');
+  } });
+  await first.click('scan'); await first.click('selectFiltered'); await first.click('execute');
+  assert.equal(first.trashCalls().length, 1);
+  assert.equal(second.trashCalls().length, 0);
+  assert.match(first.elements.status.textContent, /다른 관리 화면/);
+});
+
+test('switching accounts from an existing result retry clears all previous account results before fresh data', async () => {
+  let account = 'account-one';
+  const h = await harness({ records: photoRecords(1).map(record => ({ ...record, name: 'account-a-private-name.jpg' })), failTrashAt: 1, accountAt: () => account });
+  await h.click('scan'); await h.click('selectFiltered'); await h.click('downloadPhotos'); await h.click('execute');
+  assert.equal(h.elements.outcomeSection.hidden, false);
+  assert.equal(h.outcomeButtons().length, 2);
+  account = 'account-two';
+  await h.outcomeButtons()[0].click();
+  assert.equal(h.elements.outcomeSection.hidden, true);
+  assert.equal(h.outcomeButtons().length, 0);
+  assert.equal(h.elements.outcomeList.children.length, 0);
+  assert.equal(h.elements.exportOutcomes.disabled, true);
+  assert.equal(h.elements.downloadReport.disabled, true);
+  assert.equal(h.elements.selectedCount.textContent, '0');
+  assert.equal(h.elements.preview.children.length, 0);
+  assert.equal(h.trashCalls().length, 1);
+  assert.match(h.elements.status.textContent, /계정이 바뀌었습니다/);
+  assert.ok(storageAccountExists(h.storage, 'account-one'), 'Switching accounts preserves the original account checkpoint');
+});
+
+function storageAccountExists(storage, account) { return typeof storage.get(workspace.key(account)) === 'string'; }
+
+test('photo and GIF rows offer preview buttons while videos and general files do not', async () => {
+  const records = photoRecords(4).map((record, index) => ({ ...record,
+    kind: ['photo', 'gif', 'video', 'file'][index], verticalType: index === 3 ? 'FILE' : 'MEDIA' }));
+  const h = await harness({ records });
+  h.elements.typesVideo.checked = true; h.elements.typesFile.checked = true;
+  await h.click('scan');
+  assert.deepEqual(h.previewButtons().map(button => button.getAttribute('data-photo-preview')).sort(),
+    records.slice(0, 2).map(record => record.id));
+  assert.equal(h.calls.filter(call => call.method === 'previewPhoto').length, 0, 'Finding a list does not fetch thumbnails');
+  await h.click('viewRooms'); await h.click('expandRooms');
+  const grouped = h.grouped().filter(node => node.getAttribute('data-photo-preview'));
+  assert.deepEqual(grouped.map(button => button.getAttribute('data-photo-preview')).sort(), records.slice(0, 2).map(record => record.id));
+});
+
+test('opening a photo preview requests only that thumbnail and closing clears its URL and restores focus', async () => {
+  const h = await harness({ count: 1 });
+  await h.click('scan');
+  const button = h.previewButtons()[0];
+  await button.click();
+  const calls = h.calls.filter(call => call.method === 'previewPhoto');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].options.record.id, 'photo-0000');
+  assert.equal(calls[0].options.criteria.account, 'account-one');
+  assert.equal(h.elements.photoPreview.hidden, false);
+  assert.equal(h.elements.photoPreviewImage.hidden, false);
+  assert.match(h.elements.photoPreviewImage.src, /^https:\/\/dn\.talk\.kakao\.com\/photo-0000-small\.jpg\?/);
+  assert.equal(h.documentState.activeElement, h.elements.closePhotoPreview);
+  assert.equal(h.downloadCalls.length, 0);
+  assert.equal(h.calls.filter(call => call.method === 'originalFile').length, 0);
+  assert.equal(h.trashCalls().length, 0);
+  await h.click('closePhotoPreview');
+  assert.equal(h.elements.photoPreview.hidden, true);
+  assert.equal(h.elements.photoPreviewImage.hidden, true);
+  assert.equal(h.elements.photoPreviewImage.src, '');
+  assert.equal(h.documentState.activeElement, button);
+  assert.equal(h.calls.filter(call => call.method === 'previewPhoto').length, 1);
+});
+
+test('closing a loading preview discards its late response without displaying or persisting the URL', async () => {
+  const gate = deferred(), h = await harness({ count: 1, onPreview: () => gate.promise });
+  await h.click('scan');
+  const pending = h.previewButtons()[0].click();
+  await new Promise(setImmediate);
+  assert.equal(h.elements.photoPreview.hidden, false);
+  assert.equal(h.elements.photoPreviewImage.hidden, true);
+  await h.click('closePhotoPreview');
+  gate.resolve(); await pending;
+  assert.equal(h.elements.photoPreview.hidden, true);
+  assert.equal(h.elements.photoPreviewImage.hidden, true);
+  assert.equal(h.elements.photoPreviewImage.src, '');
+  assert.doesNotMatch([...h.storage.values()].join(''), /synthetic-preview-value|signature=|small\.jpg|https?:/);
+  assert.equal(h.downloadCalls.length, 0);
+  assert.equal(h.trashCalls().length, 0);
+});
+
+test('changing lookup conditions while a preview loads invalidates its late response', async () => {
+  const gate = deferred(), h = await harness({ count: 1, onPreview: () => gate.promise });
+  await h.click('scan');
+  const pending = h.previewButtons()[0].click();
+  await new Promise(setImmediate);
+  h.elements.cutoff.value = '2023-01-01'; await h.change('cutoff');
+  gate.resolve(); await pending;
+  assert.equal(h.elements.photoPreview.hidden, true);
+  assert.equal(h.elements.photoPreviewImage.hidden, true);
+  assert.equal(h.elements.photoPreviewImage.src, '');
+  assert.equal(h.elements.preview.children.length, 0);
+  assert.equal(h.elements.execute.disabled, true);
+  assert.equal(h.downloadCalls.length, 0);
+  assert.equal(h.trashCalls().length, 0);
+});
+
+test('an earlier photo response cannot replace the image from a newer preview request', async () => {
+  const gate = deferred(), h = await harness({ count: 2, onPreview: options =>
+    options.record.id === 'photo-0000' ? gate.promise : undefined });
+  await h.click('scan');
+  const buttons = h.previewButtons(), first = buttons.find(button => button.getAttribute('data-photo-preview') === 'photo-0000'),
+    second = buttons.find(button => button.getAttribute('data-photo-preview') === 'photo-0001');
+  const pending = first.click(); await new Promise(setImmediate);
+  await second.click();
+  const currentUrl = h.elements.photoPreviewImage.src;
+  assert.match(currentUrl, /photo-0001-small\.jpg/);
+  gate.resolve(); await pending;
+  assert.equal(h.elements.photoPreviewImage.src, currentUrl);
+  assert.equal(h.elements.photoPreviewTitle.textContent, 'photo-1.jpg');
+  await h.click('closePhotoPreview');
+  assert.equal(h.documentState.activeElement, second);
+  assert.equal(h.downloadCalls.length, 0);
+  assert.equal(h.trashCalls().length, 0);
+});
+
+test('untrusted or mismatched preview responses never display an image or export their raw URLs', async () => {
+  const marker = 'synthetic-preview-private', unsafeUrl = 'https://example.test/thumbnail?' + `signature=${marker}`;
+  for (const change of [{ url: unsafeUrl }, { id: 'other-photo' }, { kind: 'video' }, { source: 'original' }]) {
+    const h = await harness({ count: 1, preview: options => ({ id: options.record.id, name: options.record.name,
+      kind: options.record.kind, source: 'thumbnail', url: 'https://dn.talk.kakao.com/thumbnail.jpg?' + `signature=${marker}`, ...change }) });
+    await h.click('scan'); await h.click('selectPage');
+    await h.previewButtons()[0].click();
+    assert.equal(h.elements.photoPreview.hidden, false);
+    assert.equal(h.elements.photoPreviewImage.hidden, true);
+    assert.equal(h.elements.photoPreviewImage.src, '');
+    assert.doesNotMatch(h.elements.photoPreviewStatus.textContent, /synthetic-preview-private|https?:/);
+    await h.click('export');
+    const exported = await h.exports.at(-1).text();
+    assert.doesNotMatch(exported, /synthetic-preview-private|signature=|https?:|"url"/);
+    assert.doesNotMatch([...h.storage.values()].join(''), /synthetic-preview-private|signature=|https?:/);
+    assert.equal(h.downloadCalls.length, 0);
+    assert.equal(h.trashCalls().length, 0);
+  }
+});
+
+test('validated preview URLs stay only in the open image and never enter saved work or selected-list exports', async () => {
+  const h = await harness({ count: 1 });
+  await h.click('scan'); await h.click('selectPage');
+  await h.previewButtons()[0].click();
+  assert.match(h.elements.photoPreviewImage.src, /synthetic-preview-value/);
+  await h.click('export');
+  assert.doesNotMatch(await h.exports.at(-1).text(), /synthetic-preview-value|signature=|https?:|"url"/);
+  assert.doesNotMatch([...h.storage.values()].join(''), /synthetic-preview-value|signature=|https?:/);
+  assert.equal(h.elements.selectedCount.textContent, '1', 'Previewing does not alter the review selection');
+  assert.equal(h.downloadCalls.length, 0);
+  assert.equal(h.trashCalls().length, 0);
 });

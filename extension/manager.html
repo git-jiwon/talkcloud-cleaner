@@ -12,11 +12,20 @@
 <a class="skip-link" href="#previewHeading">조회 목록으로 건너뛰기</a>
 <main class="workspace cleaner-simple">
   <header class="page-header">
-    <div class="brand"><span class="brand-mark" aria-hidden="true"><img src="icons/icon48.png" width="46" height="46" alt=""></span><div><h1>카카오톡 톡클라우드 정리 <span class="version">0.7.4</span></h1><p class="intro">찾고, 고르고, 휴지통으로. 파일 저장은 필요할 때만.</p></div></div>
+    <div class="brand"><span class="brand-mark" aria-hidden="true"><img src="icons/icon48.png" width="46" height="46" alt=""></span><div><h1>카카오톡 톡클라우드 정리 <span class="version">1.0.0-rc.1</span></h1><p class="intro">찾고, 고르고, 휴지통으로. 파일 저장은 필요할 때만.</p></div></div>
     <div class="header-links"><a href="settings-transfer.html" target="_blank" rel="noopener" class="text-link">보호 설정 이전</a><a href="guide.html" target="_blank" rel="noopener" class="text-link">사용 안내</a></div>
   </header>
   <section class="connection" aria-label="연결 상태"><div class="connection-copy"><span class="connection-dot" aria-hidden="true"></span><p id="sourceStatus">연결 확인 전</p></div><div class="connection-actions"><a class="text-link" href="https://talkcloud.kakao.com/photo/all" target="_blank" rel="noopener noreferrer">톡클라우드 열기 ↗</a><button id="refresh" class="button button-text" type="button">연결 새로고침</button></div></section>
   <div id="status" class="status" role="status" aria-live="polite" aria-atomic="true">날짜와 유형을 정하고 목록을 찾아보세요.</div>
+  <div id="recoveryHelp" class="recovery-help" hidden><p id="recoveryHelpText"></p><button id="recoveryAction" class="button button-small" type="button">사용 안내 보기</button></div>
+  <section id="firstRunSection" class="panel welcome-panel" aria-labelledby="introTitle" hidden>
+    <div class="section-heading"><h2 id="introTitle">처음 사용하시나요?</h2><button id="acknowledgeIntro" class="button button-small" type="button">확인했어요</button></div>
+    <ol id="introSteps"></ol><p class="help">업데이트할 때 같은 설치 폴더와 Edge 프로필을 사용하면 보호 목록이 유지됩니다. 설치 폴더나 프로필을 바꾸기 전에는 ‘보호 설정 이전’으로 백업하세요.</p>
+  </section>
+  <section id="workspaceSection" class="workspace-recovery" aria-label="이전 작업 이어가기">
+    <div><strong>이전 작업 이어가기</strong><p id="workspaceStatus" class="help">이 계정의 조건·선택·저장 기록을 다시 불러옵니다. 최신 목록을 확인한 뒤 이어갈 수 있습니다.</p></div>
+    <div class="recovery-actions"><button id="restoreWorkspace" class="button button-small" type="button">이전 작업 불러오기</button><details><summary>기록·사용 안내</summary><button id="forgetWorkspace" class="button button-text" type="button">이 계정의 작업 기록 지우기</button><button id="showIntro" class="button button-text" type="button">처음 사용 안내 다시 보기</button><p class="help">작업 기록은 최근 7일 이내만 불러옵니다. 기록 지우기는 보호 목록과 PC 파일에 영향을 주지 않습니다.</p></details></div>
+  </section>
 
   <section class="panel criteria-panel" aria-labelledby="criteriaHeading">
     <div class="section-heading"><h2 id="criteriaHeading"><span class="step">1</span> 항목 찾기</h2><span class="section-meta">조회만으로 삭제되지 않습니다</span></div>
@@ -80,6 +89,7 @@
 
   <section id="executeSection" class="panel execute-panel" aria-labelledby="executeHeading" hidden><div class="section-heading"><h2 id="executeHeading" tabindex="-1">휴지통 이동 진행</h2></div><p id="executeSummary" class="execute-summary" aria-live="polite">휴지통 이동 전입니다.</p><label class="visually-hidden" for="progress">휴지통 이동 진행률</label><progress id="progress" max="100" value="0">0%</progress><p class="help">100개씩 처리합니다. 중지하면 진행 중인 요청이 끝난 뒤 멈춥니다.</p></section>
 
+  <section id="outcomeSection" class="panel outcome-panel" aria-labelledby="outcomeHeading" hidden><div class="section-heading"><h2 id="outcomeHeading">처리 결과</h2><button id="exportOutcomes" class="button button-small" type="button">전체 결과 기록 (.json)</button></div><p class="help">서버 요청 성공과 완료 확인을 구분합니다. 재시도 버튼은 현재 상태를 다시 조회하고 남은 항목만 선택합니다. 정리는 별도로 확인한 뒤 실행합니다.</p><div id="outcomeList"></div></section>
   <details id="downloadSection" class="panel download-panel"><summary id="downloadHeading" class="panel-summary"><span><strong>파일을 PC에 저장</strong><small>보관할 파일이 있을 때만 펼치세요</small></span><span class="optional-badge">선택사항</span></summary><div class="download-content">
     <p id="downloadSummary" class="download-summary">저장할 파일을 선택해 주세요.</p><p class="help">사진·GIF·동영상·문서 등 일반 파일을 저장합니다. 통화녹음과 링크는 다운로드 대상이 아닙니다.</p>
     <div class="download-actions"><button id="downloadPhotos" class="button button-primary" type="button" disabled>선택한 파일 원본 저장</button><button id="downloadStop" class="button button-secondary" type="button" disabled>다운로드 중지</button><button id="downloadFolder" class="button button-text" type="button">다운로드 폴더 열기 ↗</button></div>
@@ -92,6 +102,9 @@
   <details id="logSection" class="panel log-panel"><summary id="logHeading" class="panel-summary"><strong>작업 기록</strong></summary><pre id="log" tabindex="0" aria-label="실행 기록">아직 실행 기록이 없습니다.</pre></details>
   <footer class="page-footer"><p>보관 기간과 저장 공간 반영은 <a href="https://talkcloud.kakao.com/trashcan" target="_blank" rel="noopener noreferrer">공식 휴지통 ↗</a>의 현재 안내를 확인하세요.</p><p>팀·드라이브 데이터는 이 도구에서 처리하지 않습니다. <a href="https://talkcloud.kakao.com/teamchat" target="_blank" rel="noopener noreferrer">팀 데이터 관리 ↗</a></p><p>개인용 비공식 확장 프로그램 · <a href="guide.html" target="_blank" rel="noopener">자세한 사용 안내</a></p></footer>
 </main>
-<script src="protocol.js"></script><script src="protection.js"></script><script src="review.js"></script><script src="download.js"></script><script src="manager.js"></script>
+<div id="photoPreview" class="photo-preview-overlay" role="dialog" aria-modal="true" aria-labelledby="photoPreviewTitle" hidden>
+  <section class="photo-preview-card"><div class="section-heading"><h2 id="photoPreviewTitle">사진 미리보기</h2><button id="closePhotoPreview" class="button button-small" type="button">닫기</button></div><p id="photoPreviewStatus" class="help" role="status"></p><img id="photoPreviewImage" alt="선택한 사진의 톡클라우드 썸네일" referrerpolicy="no-referrer" hidden></section>
+</div>
+<script src="protocol.js"></script><script src="protection.js"></script><script src="review.js"></script><script src="download.js"></script><script src="workspace.js"></script><script src="onboarding.js"></script><script src="preview.js"></script><script src="manager.js"></script>
 </body>
 </html>

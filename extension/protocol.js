@@ -124,7 +124,7 @@
     if (identity === '.' || identity === '..') throw new Error('파일 식별자 형식이 유효하지 않습니다.');
     return `${ORIGIN}/v2/mediaFile/${encodeURIComponent(identity)}`;
   }
-  function parseOriginalFile(raw, record, criteria = {}) {
+  function validatedFileRecord(raw, record, criteria = {}) {
     detailUrl(record);
     const media = record.verticalType === 'MEDIA';
     const expectedType = record.kind === 'video' ? 'VIDEO' : 'IMAGE';
@@ -140,7 +140,11 @@
     if (!current || fields.some(field => current[field] !== record[field]) ||
         (record.size !== null && record.size !== undefined && current.size !== record.size))
       throw new Error('파일 정보 또는 보호 조건이 조회할 때와 달라 저장을 중단했습니다. 다시 조회해 주세요.');
-    const candidate = (media ? [raw.urlHq, raw.urlNormal, raw.url] : [raw.url]).find(value => typeof value === 'string' && value.trim());
+    return current;
+  }
+  function parseOriginalFile(raw, record, criteria = {}) {
+    const current = validatedFileRecord(raw, record, criteria);
+    const candidate = (record.verticalType === 'MEDIA' ? [raw.urlHq, raw.urlNormal, raw.url] : [raw.url]).find(value => typeof value === 'string' && value.trim());
     if (!candidate) throw new Error('파일의 저장 주소가 없습니다. 미리보기 이미지는 대신 저장하지 않습니다.');
     let parsed;
     try { parsed = new URL(candidate); } catch { throw new Error('파일 저장 주소의 형식이 유효하지 않습니다.'); }
@@ -160,6 +164,30 @@
     photoDetailUrl(record);
     const { kind, mimeType, ...photo } = parseOriginalFile(raw, record, criteria);
     return Object.freeze(photo);
+  }
+  function parsePhotoPreview(raw, record, criteria = {}) {
+    photoDetailUrl(record);
+    const current = validatedFileRecord(raw, record, criteria);
+    const type = mime(raw.mimeType);
+    const imageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp',
+      'image/x-ms-bmp', 'image/avif', 'image/heic', 'image/heif', 'image/tiff'];
+    if (!imageTypes.includes(type))
+      throw new Error('이 이미지 형식은 미리보기를 지원하지 않습니다. 필요한 파일은 원본 저장으로 확인해 주세요.');
+    // The official photo list uses thumbnailUrl. Never substitute a full original
+    // or guess a conversion endpoint: merely opening a preview must stay small.
+    const candidate = raw.thumbnailUrl;
+    if (typeof candidate !== 'string' || !candidate.trim())
+      throw new Error('이 사진에는 미리보기 이미지가 없습니다. 필요한 파일은 원본 저장으로 확인해 주세요.');
+    let parsed, pathname;
+    try { parsed = new URL(candidate); pathname = decodeURIComponent(parsed.pathname); }
+    catch { throw new Error('미리보기 주소를 확인하지 못했습니다.'); }
+    const trusted = ['kakao.com', 'kakaocdn.net'].some(host => parsed.hostname === host || parsed.hostname.endsWith(`.${host}`));
+    if (candidate !== candidate.trim() || /[\\\u0000-\u001f\u007f]/.test(candidate) ||
+        !/^https:\/\//i.test(candidate) || parsed.protocol !== 'https:' || parsed.username || parsed.password ||
+        parsed.port || parsed.hash || !trusted || /\.(?:svgz?|html?|xhtml|xml)$/i.test(pathname))
+      throw new Error('지원하지 않는 미리보기 주소입니다. 톡클라우드에서 직접 확인해 주세요.');
+    return Object.freeze({ id: current.id, url: candidate, name: current.name || record.name || '',
+      kind: current.kind, source: 'thumbnail' });
   }
   function trashBody(records, cutoff, filters = {}) {
     if (filters.minBytes != null && (!Number.isSafeInteger(filters.minBytes) || filters.minBytes < 0))
@@ -181,5 +209,5 @@
     });
     return { trashContents };
   }
-  return Object.freeze({ ORIGIN, CHUNK, LEFT_ROOMS, VERTICALS: Object.freeze(VERTICALS), cutoffMs, normalize, parsePage, listUrl, roomsUrl, parseRooms, protectedRecord, detailUrl, parseOriginalFile, photoDetailUrl, parseOriginalPhoto, trashBody });
+  return Object.freeze({ ORIGIN, CHUNK, LEFT_ROOMS, VERTICALS: Object.freeze(VERTICALS), cutoffMs, normalize, parsePage, listUrl, roomsUrl, parseRooms, protectedRecord, detailUrl, parseOriginalFile, photoDetailUrl, parseOriginalPhoto, parsePhotoPreview, trashBody });
 });
