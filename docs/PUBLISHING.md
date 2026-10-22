@@ -24,9 +24,9 @@ node tools/build-public.cjs
 
 | 결과 | 용도 |
 | --- | --- |
-| `releases/talkcloud-cleaner-v1.0.0-rc.2.zip` | 사용자 설치용. 압축을 풀면 루트에 `manifest.json`이 있음 |
-| `releases/talkcloud-cleaner-source-v1.0.0-rc.2.zip` | 공개 저장소 업로드용 소스·테스트·문서 |
-| `releases/public-manifest-v1.0.0-rc.2.json` | 공개 패키지 파일 목록과 해시 |
+| `releases/talkcloud-cleaner-v1.0.0.zip` | 사용자 설치용. 압축을 풀면 루트에 `manifest.json`이 있음 |
+| `releases/talkcloud-cleaner-source-v1.0.0.zip` | 공개 저장소 업로드용 소스·테스트·문서 |
+| `releases/public-manifest-v1.0.0.json` | 공개 패키지 파일 목록과 해시 |
 
 전체 작업 폴더나 기존 ZIP을 그대로 업로드하지 마세요. `PROJECT.md`, `reference/`, 과거 배포본, 개인 설정 백업과 작업 기록은 공개 목록에 포함하지 않습니다. 새 버전에 파일을 추가하면 검사기와 `.gitignore`의 허용 목록도 함께 검토합니다. 파일명을 허용 목록에 넣는 것만으로 그 내용이 안전해지는 것은 아닙니다.
 
@@ -50,15 +50,15 @@ git diff --cached
 
 ## Release 만들기
 
-- 태그: `v1.0.0-rc.2`
-- 제목: `카카오톡 톡클라우드 정리 1.0.0-rc.2`
+- 태그: `v1.0.0`
+- 제목: `카카오톡 톡클라우드 정리 1.0.0`
 - 본문: [RELEASE_NOTES.md](RELEASE_NOTES.md)
 - 첨부: 새 설치용 ZIP과 공개 파일 해시 목록. 필요하면 공개 소스 ZIP도 첨부
-- **This is a pre-release**를 선택하고 정식 최신 릴리스로 표시하지 않음
+- 일반 릴리스로 게시하고 **This is a pre-release**는 선택하지 않음
 
-1.0.0-rc.2는 정식 출시 전 후보 버전입니다. 사용자에게 보이는 버전과 배포 파일명은 `manifest.json`의 `version_name`을 사용하며, 숫자로만 구성해야 하는 확장 업데이트 버전은 별도입니다. 버전 문자열이 서로 다른 역할임을 확인하고 기존 설치본보다 업데이트 버전이 증가하도록 관리하세요.
+1.0.0은 정식 배포 버전입니다. 사용자에게 보이는 버전·배포 파일명과 `manifest.json`의 확장 업데이트 버전을 확인하고, 기존 설치본보다 업데이트 버전이 증가하도록 관리하세요. 정식 릴리스 표시는 실제 계정 통합 검증 완료를 뜻하지 않습니다.
 
-## 정식 1.0 출시 전 확인
+## 실제 계정 확인 항목
 
 자동 테스트와 공개 파일·ZIP 해시 검증을 완료한 뒤 실제 계정의 소량 항목으로 아래 동작을 확인하고 결과를 기록합니다. 이 문서는 검증 완료를 의미하지 않습니다.
 
@@ -70,7 +70,7 @@ git diff --cached
 - 관리 탭 재열기 후 계정·선택 정보·다운로드 기록 재검증, 자동 삭제 재개가 없는지 확인
 - 같은 설치 경로의 이전 버전 업데이트와 보호 설정 유지, 다른 설치본으로 보호 설정 이전
 
-실제 계정 통합 검증은 아직 완료되지 않았습니다. 정식 1.0 태그와 안정 버전 안내는 이 확인을 마친 뒤 작성합니다.
+실제 계정 통합 검증은 아직 완료되지 않았습니다. 1.0.0 정식 배포와 검증 범위를 구분하며, 릴리스에는 실제 수행한 검사와 미완료 항목을 명시합니다. 확인하지 않은 동작이나 안정성을 보장하지 않습니다.
 
 GitHub 공개와 Edge 확장 스토어 등록은 별개입니다. 이 배포는 압축을 풀어 로컬에 설치하는 형태입니다. [Microsoft의 로컬 확장 설치 안내](https://learn.microsoft.com/en-us/microsoft-edge/extensions/getting-started/extension-sideloading)에서 개발자 모드와 설치 절차를 확인할 수 있습니다.
 

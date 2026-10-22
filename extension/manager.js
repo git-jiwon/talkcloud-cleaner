@@ -24,7 +24,7 @@
   let workspaceAccount = null, workspaceCriteria = null, workspaceToken = null, workspaceBlocked = false;
   let outcomes = [], rememberedSelection = [], previewRequest = 0, previewFocus = null;
   const failedThumbnails = new WeakSet();
-  const version = globalThis.chrome?.runtime?.getManifest?.().version_name || globalThis.chrome?.runtime?.getManifest?.().version || '1.0.0-rc.2';
+  const version = globalThis.chrome?.runtime?.getManifest?.().version_name || globalThis.chrome?.runtime?.getManifest?.().version || '1.0.0';
   const selectedRecords = () => plan ? R.selected(plan.records, selectedIds) : [];
   const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
   const formatSize = value => {

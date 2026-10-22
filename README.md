@@ -4,9 +4,9 @@
 
 오래된 사진·동영상·파일을 찾아 고르고 휴지통으로 옮기는 **Edge 확장**입니다. PC 저장은 선택입니다.
 
-[**설치용 ZIP 다운로드**](https://github.com/git-jiwon/talkcloud-cleaner/releases/download/v1.0.0-rc.2/talkcloud-cleaner-v1.0.0-rc.2.zip) · [변경 사항](docs/RELEASE_NOTES.md)
+[**설치용 ZIP 다운로드**](https://github.com/git-jiwon/talkcloud-cleaner/releases/download/v1.0.0/talkcloud-cleaner-v1.0.0.zip) · [변경 사항](docs/RELEASE_NOTES.md)
 
-**1.0.0-rc.2 후보 버전** · 비공식 도구이며 실제 계정 통합 검증은 아직 완료되지 않았습니다. 소수의 항목으로 먼저 확인하세요.
+**1.0.0** · 카카오의 비공식 도구입니다. 소수의 항목으로 먼저 확인하세요.
 
 ## 설치 — 처음 한 번
 
@@ -74,7 +74,7 @@ node tools/check-public.cjs
 node tools/build-public.cjs
 ```
 
-[배포 안내](docs/PUBLISHING.md). 자동 검사는 실제 계정 검증을 대신하지 않습니다. 카카오 서비스 변경에 영향을 받을 수 있습니다.
+[배포 안내](docs/PUBLISHING.md). 실제 계정 통합 검증은 아직 완료되지 않았습니다. 자동 검사는 이를 대신하지 않으며 카카오 서비스 변경에 영향을 받을 수 있습니다.
 
 </details>
 

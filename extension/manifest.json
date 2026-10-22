@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "카카오톡 톡클라우드 정리",
-  "version": "0.9.1",
+  "version": "1.0.0",
   "description": "카카오톡 톡클라우드의 사진·동영상·파일을 찾아 선택하고 휴지통으로 정리하는 비공식 도구. PC 저장은 선택사항입니다.",
   "permissions": [
     "activeTab",
@@ -29,5 +29,5 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-  "version_name": "1.0.0-rc.2"
+  "version_name": "1.0.0"
 }
