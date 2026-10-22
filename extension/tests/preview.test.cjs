@@ -16,11 +16,12 @@ const photo = (overrides = {}) => ({ id: 'synthetic-photo', createdAt: '15463008
 const selected = raw => P.normalize(raw, criteria.cutoff, true, criteria);
 const parsed = raw => P.parsePhotoPreview(raw, selected(raw), criteria);
 
-test('only MEDIA photos and GIFs offer preview controls', () => {
+test('only MEDIA photos, GIFs and video posters offer preview controls', () => {
   assert.equal(V.eligible(selected(photo())), true);
   assert.equal(V.eligible(selected(photo({ mimeType: 'image/gif', extension: 'gif' }))), true);
+  assert.equal(V.eligible({ kind: 'video', verticalType: 'MEDIA' }), true);
   for (const record of [null, undefined, {}, { kind: 'photo', verticalType: 'FILE' },
-    ...['video', 'file', 'link', 'recording'].map(kind => ({ kind, verticalType: 'MEDIA' }))])
+    ...['file', 'link', 'recording'].map(kind => ({ kind, verticalType: 'MEDIA' }))])
     assert.equal(V.eligible(record), false);
 });
 
@@ -52,6 +53,74 @@ test('GIF and HEIC photos can use their official static thumbnails', () => {
     assert.equal(result.source, 'thumbnail');
     assert.equal(result.url, raw.thumbnailUrl);
   }
+});
+
+test('list records carry only a validated thumbnail without adding detail or original requests', () => {
+  const mediaCriteria = { ...criteria, kinds: ['photo', 'gif', 'video'] };
+  for (const overrides of [{}, { mimeType: 'image/gif', extension: 'gif' },
+    { contentType: 'VIDEO', mimeType: 'video/mp4', extension: 'mp4', originalFilename: '' }]) {
+    const raw = photo(overrides), record = P.normalize(raw, criteria.cutoff, true, mediaCriteria);
+    assert.equal(record.thumbnailUrl, raw.thumbnailUrl);
+    assert.deepEqual(V.fromRecord(record), { id: raw.id, url: raw.thumbnailUrl,
+      name: raw.originalFilename, kind: record.kind, source: 'thumbnail' });
+    assert.ok(Object.isFrozen(V.fromRecord(record)));
+    assert.doesNotMatch(JSON.stringify(V.fromRecord(record)), /original\.jpg|large\.jpg/);
+  }
+});
+
+test('absent, unsafe or unsupported list thumbnails stay unavailable without hiding eligible records', () => {
+  for (const thumbnailUrl of [null, undefined, '', ' ', {}, 1, 'https://evil.example/a.jpg',
+    'https://dn.talk.kakao.com/a.svg', 'https://dn.talk.kakao.com/a.jpg#fragment']) {
+    const record = selected(photo({ thumbnailUrl }));
+    assert.equal(record.id, photo().id);
+    assert.equal(record.thumbnailUrl, null);
+    assert.equal(V.fromRecord(record), null);
+  }
+  for (const mimeType of ['', undefined, 'image/svg+xml', 'image/unknown']) {
+    const record = selected(photo({ mimeType }));
+    assert.equal(record.thumbnailUrl, null);
+    assert.equal(V.fromRecord(record), null);
+  }
+});
+
+test('file, link and recording thumbnails are not promoted to inline media previews', () => {
+  for (const [verticalType, kind] of [['FILE', 'file'], ['LINK', 'link'], ['RECORDING', 'recording']]) {
+    const record = P.normalize(photo({ recordingStartedAt: photo().createdAt, displayName: '녹음', voiceSize: '1234' }),
+      criteria.cutoff, true, { verticalType, kinds: [kind] });
+    assert.equal(record.thumbnailUrl, null);
+    assert.equal(V.fromRecord({ ...record, thumbnailUrl: photo().thumbnailUrl }), null);
+  }
+});
+
+test('video preview uses an image poster with known video MIME and never enables originalPhoto', () => {
+  const videoCriteria = { ...criteria, kinds: ['video'] };
+  for (const mimeType of ['video/mp4', ' VIDEO/QUICKTIME ; codecs=hvc1', 'video/webm']) {
+    const raw = photo({ contentType: 'VIDEO', mimeType, extension: 'mp4', originalFilename: '' });
+    const record = P.normalize(raw, criteria.cutoff, true, videoCriteria);
+    const result = P.parsePhotoPreview(raw, record, videoCriteria);
+    assert.deepEqual(result, { id: raw.id, url: raw.thumbnailUrl, name: '', kind: 'video', source: 'thumbnail' });
+    assert.equal(V.validateResult(result, record).kind, 'video');
+    assert.equal(P.previewDetailUrl(record), P.detailUrl(record));
+    assert.throws(() => P.photoDetailUrl(record), /사진과 GIF/);
+    assert.throws(() => P.parseOriginalPhoto(raw, record, videoCriteria), /사진과 GIF/);
+  }
+  for (const mimeType of ['', undefined, 'video/unknown', 'video/svg+xml']) {
+    const raw = photo({ contentType: 'VIDEO', mimeType });
+    const record = P.normalize(raw, criteria.cutoff, true, videoCriteria);
+    assert.equal(record.thumbnailUrl, null);
+    assert.throws(() => P.parsePhotoPreview(raw, record, videoCriteria), /미리보기/);
+  }
+});
+
+test('inline preview rejects injected fields and never throws for missing or invalid restored records', () => {
+  const record = selected(photo()), result = V.fromRecord(record);
+  assert.deepEqual(V.fromRecord({ ...record, account: 'synthetic-account', urlHq: photo().urlHq }), result);
+  assert.doesNotMatch(JSON.stringify(result), /account|urlHq/);
+  for (const change of [{ id: '' }, { id: 123 }, { name: null }, { name: {} }, { name: 'x'.repeat(513) },
+    { thumbnailUrl: null }, { thumbnailUrl: 'javascript:alert(1)' }, { thumbnailUrl: 'https://evil.example/a.jpg' },
+    { thumbnailUrl: 'https://dn.talk.kakao.com/' + 'a'.repeat(16384) }])
+    assert.equal(V.fromRecord({ ...record, ...change }), null);
+  for (const record of [null, undefined, {}, false, 1, 'text']) assert.equal(V.fromRecord(record), null);
 });
 
 test('SVG, HTML, unknown and missing image MIME values cannot be previewed', () => {
@@ -90,6 +159,8 @@ test('both preview trust boundaries reject unsafe schemes, hostnames, credential
   for (const url of urls) {
     assert.throws(() => V.validateUrl(url), url);
     assert.throws(() => parsed(photo({ thumbnailUrl: url })), url);
+    assert.equal(selected(photo({ thumbnailUrl: url })).thumbnailUrl, null, url);
+    assert.equal(V.fromRecord({ ...selected(photo()), thumbnailUrl: url }), null, url);
   }
 });
 
@@ -123,4 +194,5 @@ test('preview module is usable in a browser and never accesses storage, DOM or n
   const record = selected(photo());
   assert.equal(context.TalkCleanerPreview.eligible(record), true);
   assert.equal(context.TalkCleanerPreview.validateResult(parsed(photo()), record).url, photo().thumbnailUrl);
+  assert.equal(context.TalkCleanerPreview.fromRecord(record).url, photo().thumbnailUrl);
 });

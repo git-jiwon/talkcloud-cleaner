@@ -191,7 +191,7 @@ async function harness(config = {}) {
               if (config.roomsError) throw new Error(config.roomsError);
               value = { rooms: config.rooms || [], skipped: 0 };
             } else if (method === "previewPhoto") {
-              assert.ok(preview.eligible(options.record), "Only photos and GIFs may request a thumbnail");
+              assert.ok(preview.eligible(options.record), "Only photos, GIFs and videos may request a thumbnail");
               if (config.onPreview) await config.onPreview(options, calls);
               if (config.previewError) throw new Error(config.previewError);
               const record = options.record;
@@ -250,6 +250,7 @@ async function harness(config = {}) {
     checkboxes: previewCheckboxes,
     protectButtons: () => walk(elements.preview).filter(node => node.getAttribute('data-record-protect')),
     previewButtons: () => walk(elements.preview).filter(node => node.getAttribute('data-photo-preview')),
+    previewImages: () => walk(elements.preview).filter(node => node.id === 'img'),
     roomCheckboxes: () => walk(elements.roomList).filter(node => node.type === "checkbox"),
     grouped: () => walk(elements.groupPreview),
     outcomeButtons: () => walk(elements.outcomeList).filter(node => node.id === 'button'),
@@ -1805,18 +1806,18 @@ test('switching accounts from an existing result retry clears all previous accou
 
 function storageAccountExists(storage, account) { return typeof storage.get(workspace.key(account)) === 'string'; }
 
-test('photo and GIF rows offer preview buttons while videos and general files do not', async () => {
+test('photo, GIF and video rows offer preview buttons while general files do not', async () => {
   const records = photoRecords(4).map((record, index) => ({ ...record,
     kind: ['photo', 'gif', 'video', 'file'][index], verticalType: index === 3 ? 'FILE' : 'MEDIA' }));
   const h = await harness({ records });
   h.elements.typesVideo.checked = true; h.elements.typesFile.checked = true;
   await h.click('scan');
   assert.deepEqual(h.previewButtons().map(button => button.getAttribute('data-photo-preview')).sort(),
-    records.slice(0, 2).map(record => record.id));
+    records.slice(0, 3).map(record => record.id));
   assert.equal(h.calls.filter(call => call.method === 'previewPhoto').length, 0, 'Finding a list does not fetch thumbnails');
   await h.click('viewRooms'); await h.click('expandRooms');
   const grouped = h.grouped().filter(node => node.getAttribute('data-photo-preview'));
-  assert.deepEqual(grouped.map(button => button.getAttribute('data-photo-preview')).sort(), records.slice(0, 2).map(record => record.id));
+  assert.deepEqual(grouped.map(button => button.getAttribute('data-photo-preview')).sort(), records.slice(0, 3).map(record => record.id));
 });
 
 test('opening a photo preview requests only that thumbnail and closing clears its URL and restores focus', async () => {
@@ -1926,4 +1927,155 @@ test('validated preview URLs stay only in the open image and never enter saved w
   assert.equal(h.elements.selectedCount.textContent, '1', 'Previewing does not alter the review selection');
   assert.equal(h.downloadCalls.length, 0);
   assert.equal(h.trashCalls().length, 0);
+});
+
+function inlineRecords(count = 3) {
+  return photoRecords(count).map((record, index) => ({ ...record, kind: ['photo', 'gif', 'video'][index % 3],
+    thumbnailUrl: `https://dn.talk.kakao.com/synthetic-inline-${index}-small.jpg?signature=synthetic-token` }));
+}
+
+test('visible photo, GIF and video rows load their existing thumbnails lazily without detail requests', async () => {
+  const records = [...inlineRecords(), { ...photoRecords(1)[0], id: 'general-file', kind: 'file', verticalType: 'FILE',
+    thumbnailUrl: 'https://dn.talk.kakao.com/synthetic-unused-file.jpg' }];
+  const h = await harness({ records });
+  h.elements.typesVideo.checked = true; h.elements.typesFile.checked = true;
+  await h.click('scan');
+  assert.equal(h.previewImages().length, 3);
+  for (const image of h.previewImages()) {
+    const record = records.find(item => item.id === image.parentElement.getAttribute('data-photo-preview'));
+    assert.equal(image.src, record.thumbnailUrl);
+    assert.equal(image.loading, 'lazy');
+    assert.equal(image.referrerPolicy, 'no-referrer');
+    assert.equal(image.hidden, false, 'Lazy-loaded images need a visible box before their load event');
+    const placeholder = image.parentElement.children.find(node => node.className === 'thumbnail-placeholder');
+    await image.dispatch('load');
+    assert.equal(placeholder.hidden, true);
+  }
+  const gifButton = h.previewButtons().find(button => button.getAttribute('data-photo-preview') === records[1].id);
+  const videoButton = h.previewButtons().find(button => button.getAttribute('data-photo-preview') === records[2].id);
+  assert.equal(gifButton.children.find(node => node.className === 'thumbnail-badge').textContent, 'GIF');
+  assert.match(videoButton.children.find(node => node.className === 'thumbnail-badge').textContent, /동영상/);
+  assert.equal(h.calls.filter(call => call.method === 'previewPhoto').length, 0);
+  assert.equal(h.calls.filter(call => call.method === 'originalFile').length, 0);
+  assert.equal(h.downloadCalls.length, 0);
+  assert.equal(h.trashCalls().length, 0);
+});
+
+test('opening an existing inline thumbnail reuses its URL for enlargement including video cover images', async () => {
+  const records = inlineRecords(), h = await harness({ records });
+  h.elements.typesVideo.checked = true;
+  await h.click('scan');
+  for (const record of records) {
+    const button = h.previewButtons().find(button => button.getAttribute('data-photo-preview') === record.id);
+    await button.click();
+    assert.equal(h.elements.photoPreviewImage.src, record.thumbnailUrl);
+    assert.equal(h.elements.photoPreviewImage.hidden, false);
+    if (record.kind === 'video') assert.match(h.elements.photoPreviewStatus.textContent, /대표 이미지.*자동으로 재생하거나 저장하지 않습니다/);
+    await h.click('closePhotoPreview');
+    assert.equal(h.documentState.activeElement, button);
+  }
+  assert.equal(h.calls.filter(call => call.method === 'previewPhoto').length, 0);
+  assert.equal(h.calls.filter(call => call.method === 'originalFile').length, 0);
+  assert.equal(h.downloadCalls.length, 0);
+  assert.equal(h.trashCalls().length, 0);
+});
+
+test('unnamed media show their type and date without rewriting actual names in selected-list exports', async () => {
+  const records = inlineRecords().map(record => ({ ...record, name: '' })), h = await harness({ records });
+  h.elements.typesVideo.checked = true;
+  await h.click('scan'); await h.click('selectPage');
+  for (const button of h.previewButtons()) {
+    const record = records.find(item => item.id === button.getAttribute('data-photo-preview'));
+    const caption = button.parentElement.children.find(node => node.className === 'media-filename');
+    assert.match(caption.textContent, new RegExp(`${{ photo: '사진', gif: 'GIF', video: '동영상' }[record.kind]}.*2020-01-01`));
+    await button.click();
+    assert.equal(h.elements.photoPreviewTitle.textContent, caption.textContent);
+    await h.click('closePhotoPreview');
+  }
+  await h.click('export');
+  const exported = JSON.parse(await h.exports.at(-1).text());
+  assert.ok(exported.records.every(record => record.name === ''));
+  assert.equal(h.elements.selectedCount.textContent, '3');
+});
+
+test('a failed inline image becomes a placeholder and explicit preview retries its current thumbnail details', async () => {
+  const record = inlineRecords()[2], h = await harness({ records: [record] });
+  h.elements.typesVideo.checked = true;
+  await h.click('scan');
+  const image = h.previewImages()[0];
+  await image.dispatch('error');
+  assert.equal(image.src, '');
+  assert.equal(image.hidden, true);
+  assert.match(image.parentElement.children.find(node => node.className === 'thumbnail-placeholder').textContent, /확인 불가/);
+  assert.equal(h.calls.filter(call => call.method === 'previewPhoto').length, 0, 'A failed image must not start automatic detail requests');
+  await h.previewButtons()[0].click();
+  assert.equal(h.calls.filter(call => call.method === 'previewPhoto').length, 1);
+  assert.match(h.elements.photoPreviewImage.src, /photo-0002-small\.jpg/);
+  await h.click('closePhotoPreview'); await h.click('viewRooms'); await h.click('expandRooms');
+  const groupedImage = h.grouped().find(node => node.id === 'img');
+  assert.equal(groupedImage.src, undefined, 'Changing view must not automatically retry a failed inline URL');
+  assert.equal(groupedImage.hidden, true);
+  assert.equal(h.downloadCalls.length, 0);
+  assert.equal(h.trashCalls().length, 0);
+});
+
+test('untrusted inline addresses stay as placeholders and never become image sources or persisted metadata', async () => {
+  const records = inlineRecords(1).map(record => ({ ...record,
+    thumbnailUrl: 'https://example.test/untrusted.jpg?signature=synthetic-private-value' }));
+  const h = await harness({ records });
+  await h.click('scan'); await h.click('selectPage');
+  const image = h.previewImages()[0];
+  assert.equal(image.src, undefined);
+  assert.equal(image.hidden, true);
+  assert.equal(h.calls.filter(call => call.method === 'previewPhoto').length, 0);
+  await h.previewButtons()[0].click();
+  assert.equal(h.calls.filter(call => call.method === 'previewPhoto').length, 1);
+  assert.match(h.elements.photoPreviewImage.src, /^https:\/\/dn\.talk\.kakao\.com\//);
+  await h.click('export');
+  assert.doesNotMatch(await h.exports.at(-1).text(), /synthetic-private-value|signature=|https?:|thumbnailUrl/);
+  assert.doesNotMatch([...h.storage.values()].join(''), /synthetic-private-value|signature=|https?:|thumbnailUrl/);
+});
+
+test('inline thumbnails paginate with visible rows and preserve selections across room filtering and views', async () => {
+  const records = inlineRecords(102).map((record, index) => ({ ...record, roomId: index < 101 ? 'one' : 'two' }));
+  const h = await harness({ records });
+  h.elements.typesVideo.checked = true;
+  await h.click('scan');
+  h.elements.reviewSort.value = 'date-asc'; await h.change('reviewSort');
+  await selectRecord(h, 'photo-0000');
+  assert.equal(h.previewImages().length, 100);
+  await h.click('previewNext');
+  assert.equal(h.previewImages().length, 2);
+  await selectRecord(h, 'photo-0101');
+  assert.equal(h.elements.selectedCount.textContent, '2');
+  h.elements.reviewRoom.value = 'room:one'; await h.change('reviewRoom');
+  assert.equal(h.elements.selectedCount.textContent, '2');
+  await h.click('viewRooms'); await h.click('expandRooms');
+  assert.equal(h.grouped().filter(node => node.id === 'img').length, 50);
+  assert.equal(h.grouped().find(node => node.type === 'checkbox' && node.getAttribute('data-record-id') === 'photo-0000').checked, true);
+  await h.click('viewFlat');
+  assert.equal(h.checkboxes().find(node => node.getAttribute('data-record-id') === 'photo-0000').checked, true);
+  await h.click('export');
+  const exported = await h.exports.at(-1).text();
+  assert.deepEqual(JSON.parse(exported).records.map(record => record.id).sort(), ['photo-0000', 'photo-0101']);
+  assert.doesNotMatch(exported, /synthetic-token|signature=|https?:|thumbnailUrl/);
+  assert.doesNotMatch([...h.storage.values()].join(''), /synthetic-token|signature=|https?:|thumbnailUrl/);
+  assert.equal(h.calls.filter(call => call.method === 'previewPhoto').length, 0);
+  assert.equal(h.downloadCalls.length, 0);
+  assert.equal(h.trashCalls().length, 0);
+});
+
+test('restoring work retains a selected file when only its temporary thumbnail URL has changed', async () => {
+  const storage = new Map(), records = inlineRecords(1), first = await harness({ records, storage });
+  await first.click('scan'); await first.click('selectPage');
+  const rotated = records.map(record => ({ ...record,
+    thumbnailUrl: 'https://dn.talk.kakao.com/synthetic-rotated-small.jpg?signature=synthetic-private-value' }));
+  const second = await harness({ records: rotated, storage });
+  await second.click('restoreWorkspace');
+  assert.equal(second.elements.selectedCount.textContent, '1');
+  assert.equal(second.checkboxes()[0].checked, true);
+  assert.equal(second.previewImages()[0].src, rotated[0].thumbnailUrl);
+  assert.doesNotMatch([...storage.values()].join(''), /synthetic-(token|private-value)|signature=|https?:|thumbnailUrl/);
+  assert.equal(second.calls.filter(call => call.method === 'previewPhoto').length, 0);
+  assert.equal(second.trashCalls().length, 0);
 });

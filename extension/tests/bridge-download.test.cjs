@@ -190,13 +190,37 @@ test('previewPhoto revalidates account around photo detail and returns only the 
   assertReadOnly(h);
 });
 
-test('previewPhoto refuses missing account or non-photo kinds before making requests', async () => {
+test('previewPhoto refuses missing account or non-media kinds before making requests', async () => {
   for (const options of [undefined, {}, { record: record(photo()), criteria: {} },
-    { record: { ...record(photo()), kind: 'video' }, criteria },
+    { record: { ...record(photo()), kind: 'link', verticalType: 'LINK' }, criteria },
     { record: { ...record(photo()), verticalType: 'FILE', kind: 'file' }, criteria }]) {
     const h = bridgeWith();
     await assert.rejects(h.api.previewPhoto(options));
     assert.equal(h.calls.length, 0);
+    assertReadOnly(h);
+  }
+});
+
+test('previewPhoto supports a video poster through the existing detail route without requesting the video', async () => {
+  const raw = photo({ ...videoDetail(), thumbnailUrl: 'https://dn.talk.kakao.com/video-poster.jpg?signature=synthetic-private-value', originalFilename: '' });
+  const selected = generalRecord(raw), h = bridgeWith({ detail: raw });
+  const result = await h.api.previewPhoto({ record: selected, criteria: fileCriteria });
+  assert.deepEqual(result, { id: selected.id, url: raw.thumbnailUrl, name: '', kind: 'video', source: 'thumbnail' });
+  assert.deepEqual(h.calls.map(call => call.url), [accountUrl, P.detailUrl(selected), accountUrl]);
+  assertReadOnly(h);
+});
+
+test('video poster fallback rejects account changes, missing thumbnails and newly protected items', async () => {
+  const raw = photo({ ...videoDetail(), thumbnailUrl: 'https://dn.talk.kakao.com/video-poster.jpg?signature=synthetic-private-value' });
+  const selected = generalRecord(raw);
+  for (const [detail, activeCriteria, accounts] of [[raw, fileCriteria, [accountId, 'different-account']],
+    [{ ...raw, thumbnailUrl: undefined }, fileCriteria],
+    [raw, { ...fileCriteria, protectedFileIds: [raw.id] }]]) {
+    const h = bridgeWith({ detail, accounts });
+    await assert.rejects(h.api.previewPhoto({ record: selected, criteria: activeCriteria }), error => {
+      assert.doesNotMatch(error.message, /signature|synthetic-private-value|video\.mp4/);
+      return true;
+    });
     assertReadOnly(h);
   }
 });

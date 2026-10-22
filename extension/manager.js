@@ -23,7 +23,8 @@
   let protectionAccount = null, protection = { version: 1, files: [], rooms: [] }, rooms = new Map();
   let workspaceAccount = null, workspaceCriteria = null, workspaceToken = null, workspaceBlocked = false;
   let outcomes = [], rememberedSelection = [], previewRequest = 0, previewFocus = null;
-  const version = globalThis.chrome?.runtime?.getManifest?.().version_name || globalThis.chrome?.runtime?.getManifest?.().version || '1.0.0-rc.1';
+  const failedThumbnails = new WeakSet();
+  const version = globalThis.chrome?.runtime?.getManifest?.().version_name || globalThis.chrome?.runtime?.getManifest?.().version || '1.0.0-rc.2';
   const selectedRecords = () => plan ? R.selected(plan.records, selectedIds) : [];
   const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
   const formatSize = value => {
@@ -171,16 +172,17 @@
   async function showPreview(record, control) {
     if (busy || !plan || !V.eligible(record)) return;
     const current = plan, request = ++previewRequest; previewFocus = control;
-    $('photoPreview').hidden = false; $('photoPreviewTitle').textContent = record.name || '사진 미리보기';
+    $('photoPreview').hidden = false; $('photoPreviewTitle').textContent = record.name || `${kindLabels[record.kind]} · ${record.date}`;
     $('photoPreviewImage').removeAttribute('src'); $('photoPreviewImage').hidden = true;
     $('photoPreviewStatus').textContent = '썸네일을 불러오는 중… 원본 파일을 저장하지 않습니다.'; $('closePhotoPreview').focus();
     try {
       checkPlan(current);
-      const result = V.validateResult(await call('previewPhoto', { record, criteria: current.criteria }), record);
+      const inline = !failedThumbnails.has(record) && V.fromRecord(record);
+      const result = inline || V.validateResult(await call('previewPhoto', { record, criteria: current.criteria }), record);
       checkPlan(current);
       if (request !== previewRequest || plan !== current) return;
       $('photoPreviewImage').src = result.url; $('photoPreviewImage').hidden = false;
-      $('photoPreviewStatus').textContent = '톡클라우드 썸네일입니다. 촬영 원본과 화질이 다를 수 있습니다.';
+      $('photoPreviewStatus').textContent = record.kind === 'video' ? '동영상 대표 이미지입니다. 동영상을 자동으로 재생하거나 저장하지 않습니다.' : '톡클라우드 썸네일입니다. 촬영 원본과 화질이 다를 수 있습니다.';
     } catch (error) { if (request === previewRequest) $('photoPreviewStatus').textContent = error.message; }
   }
   function log(message) {
@@ -444,11 +446,28 @@
       checkbox.setAttribute('aria-label', `${record.date} ${record.name || kindLabels[record.kind]} 선택`);
       checkbox.addEventListener('change', () => selectionChange([record], checkbox.checked));
       selectCell.append(checkbox); tr.append(selectCell);
-      for (const [index, text] of [record.name || '(이름 미제공)', roomName(record), record.date, record.kind === 'link' ? '용량 집계 제외' : formatSize(record.size), kindLabels[record.kind]].entries()) {
+      for (const [index, text] of [record.name || `${kindLabels[record.kind]} · ${record.date}`, roomName(record), record.date, record.kind === 'link' ? '용량 집계 제외' : formatSize(record.size), kindLabels[record.kind]].entries()) {
         const td = document.createElement('td'); td.textContent = text; td.title = text;
         if (index === 0 && V.eligible(record)) {
-          const preview = button('미리보기', () => showPreview(record, preview), 'button button-text preview-photo');
-          preview.setAttribute('data-photo-preview', record.id); preview.setAttribute('aria-label', `${record.name || '사진'} 미리보기`); td.append(preview);
+          const inline = V.fromRecord(record), layout = document.createElement('div'), caption = document.createElement('span');
+          const preview = button('', () => showPreview(record, preview), 'media-thumbnail');
+          const image = document.createElement('img'), placeholder = document.createElement('span');
+          layout.className = 'media-name'; caption.className = 'media-filename'; caption.textContent = text;
+          placeholder.className = 'thumbnail-placeholder'; placeholder.textContent = inline && !failedThumbnails.has(record) ? '불러오는 중' : '미리보기 없음';
+          preview.setAttribute('data-photo-preview', record.id); preview.setAttribute('aria-label', `${text} 미리보기`); preview.title = '눌러서 미리보기 확대';
+          image.alt = ''; image.width = 104; image.height = 76; image.loading = 'lazy'; image.decoding = 'async'; image.referrerPolicy = 'no-referrer'; image.hidden = !(inline && !failedThumbnails.has(record));
+          image.addEventListener('load', () => { image.hidden = false; placeholder.hidden = true; });
+          image.addEventListener('error', () => {
+            failedThumbnails.add(record); image.removeAttribute('src'); image.hidden = true;
+            placeholder.hidden = false; placeholder.textContent = '이미지 확인 불가';
+          });
+          if (inline && !failedThumbnails.has(record)) image.src = inline.url;
+          preview.append(image, placeholder);
+          if (record.kind === 'video' || record.kind === 'gif') {
+            const badge = document.createElement('span'); badge.className = 'thumbnail-badge';
+            badge.textContent = record.kind === 'video' ? '▶ 동영상' : 'GIF'; preview.append(badge);
+          }
+          layout.append(preview, caption); td.replaceChildren(layout);
         }
         tr.append(td);
       }

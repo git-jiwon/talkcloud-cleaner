@@ -9,6 +9,11 @@
   const VERTICALS = ['MEDIA', 'FILE', 'LINK', 'RECORDING'];
   const KINDS = ['photo', 'gif', 'video', 'file', 'link', 'recording'];
   const LEFT_ROOMS = '__talkcloud_all_left_rooms__';
+  const IMAGE_PREVIEW_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp',
+    'image/x-ms-bmp', 'image/avif', 'image/heic', 'image/heif', 'image/tiff'];
+  const VIDEO_PREVIEW_TYPES = ['video/mp4', 'video/quicktime', 'video/x-m4v', 'video/webm',
+    'video/3gpp', 'video/3gpp2', 'video/x-msvideo', 'video/x-matroska', 'video/mpeg',
+    'video/mp2t', 'video/ogg', 'video/x-ms-wmv'];
   function cutoffMs(value) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(value || '')) throw new Error('기준일을 선택하세요.');
     const n = Date.parse(`${value}T00:00:00+09:00`);
@@ -22,6 +27,19 @@
     return value;
   }
   function mime(value) { return String(value || '').split(';', 1)[0].trim().toLowerCase(); }
+  function thumbnail(raw, verticalType, kind) {
+    if (verticalType !== 'MEDIA' || !['photo', 'gif', 'video'].includes(kind) ||
+        !(kind === 'video' ? VIDEO_PREVIEW_TYPES : IMAGE_PREVIEW_TYPES).includes(mime(raw.mimeType))) return null;
+    const value = raw.thumbnailUrl;
+    let parsed, pathname;
+    try { parsed = new URL(value); pathname = decodeURIComponent(parsed.pathname); }
+    catch { return null; }
+    const trusted = ['kakao.com', 'kakaocdn.net'].some(host => parsed.hostname === host || parsed.hostname.endsWith(`.${host}`));
+    if (typeof value !== 'string' || value.length > 16384 || value !== value.trim() || /[\\\u0000-\u001f\u007f]/.test(value) ||
+        !/^https:\/\//i.test(value) || parsed.protocol !== 'https:' || parsed.username || parsed.password ||
+        parsed.port || parsed.hash || !trusted || /\.(?:svgz?|html?|xhtml|xml)$/i.test(pathname)) return null;
+    return value;
+  }
   function typeMismatch(raw, verticalType) {
     if (verticalType !== 'MEDIA' || raw.dimmed === true) return false;
     const value = mime(raw.mimeType);
@@ -68,7 +86,7 @@
       size: Number.isSafeInteger(size) && size >= 0 ? size : null,
       name: String(name || '').slice(0, 512), roomId: chat, joined,
       bookmarked: typeof raw.bookmarked === 'boolean' ? raw.bookmarked : null,
-      verticalType, kind });
+      verticalType, kind, thumbnailUrl: thumbnail(raw, verticalType, kind) });
   }
   function parsePage(data, options) {
     if (!data || !Array.isArray(data.items) || typeof data.hasMore !== 'boolean')
@@ -166,28 +184,19 @@
     return Object.freeze(photo);
   }
   function parsePhotoPreview(raw, record, criteria = {}) {
-    photoDetailUrl(record);
+    previewDetailUrl(record);
     const current = validatedFileRecord(raw, record, criteria);
-    const type = mime(raw.mimeType);
-    const imageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp',
-      'image/x-ms-bmp', 'image/avif', 'image/heic', 'image/heif', 'image/tiff'];
-    if (!imageTypes.includes(type))
-      throw new Error('이 이미지 형식은 미리보기를 지원하지 않습니다. 필요한 파일은 원본 저장으로 확인해 주세요.');
-    // The official photo list uses thumbnailUrl. Never substitute a full original
-    // or guess a conversion endpoint: merely opening a preview must stay small.
-    const candidate = raw.thumbnailUrl;
-    if (typeof candidate !== 'string' || !candidate.trim())
-      throw new Error('이 사진에는 미리보기 이미지가 없습니다. 필요한 파일은 원본 저장으로 확인해 주세요.');
-    let parsed, pathname;
-    try { parsed = new URL(candidate); pathname = decodeURIComponent(parsed.pathname); }
-    catch { throw new Error('미리보기 주소를 확인하지 못했습니다.'); }
-    const trusted = ['kakao.com', 'kakaocdn.net'].some(host => parsed.hostname === host || parsed.hostname.endsWith(`.${host}`));
-    if (candidate !== candidate.trim() || /[\\\u0000-\u001f\u007f]/.test(candidate) ||
-        !/^https:\/\//i.test(candidate) || parsed.protocol !== 'https:' || parsed.username || parsed.password ||
-        parsed.port || parsed.hash || !trusted || /\.(?:svgz?|html?|xhtml|xml)$/i.test(pathname))
-      throw new Error('지원하지 않는 미리보기 주소입니다. 톡클라우드에서 직접 확인해 주세요.');
-    return Object.freeze({ id: current.id, url: candidate, name: current.name || record.name || '',
+    // Photos, GIFs and video posters share the official thumbnailUrl field.
+    // Never substitute a full original or guess a conversion endpoint.
+    if (!current.thumbnailUrl)
+      throw new Error('이 항목에는 표시할 수 있는 미리보기 이미지가 없습니다. 필요한 파일은 원본 저장으로 확인해 주세요.');
+    return Object.freeze({ id: current.id, url: current.thumbnailUrl, name: current.name || record.name || '',
       kind: current.kind, source: 'thumbnail' });
+  }
+  function previewDetailUrl(record) {
+    if (!record || record.verticalType !== 'MEDIA' || !['photo', 'gif', 'video'].includes(record.kind))
+      throw new Error('사진·GIF·동영상만 미리보기를 확인할 수 있습니다.');
+    return detailUrl(record);
   }
   function trashBody(records, cutoff, filters = {}) {
     if (filters.minBytes != null && (!Number.isSafeInteger(filters.minBytes) || filters.minBytes < 0))
@@ -209,5 +218,5 @@
     });
     return { trashContents };
   }
-  return Object.freeze({ ORIGIN, CHUNK, LEFT_ROOMS, VERTICALS: Object.freeze(VERTICALS), cutoffMs, normalize, parsePage, listUrl, roomsUrl, parseRooms, protectedRecord, detailUrl, parseOriginalFile, photoDetailUrl, parseOriginalPhoto, parsePhotoPreview, trashBody });
+  return Object.freeze({ ORIGIN, CHUNK, LEFT_ROOMS, VERTICALS: Object.freeze(VERTICALS), cutoffMs, normalize, parsePage, listUrl, roomsUrl, parseRooms, protectedRecord, detailUrl, parseOriginalFile, photoDetailUrl, parseOriginalPhoto, previewDetailUrl, parsePhotoPreview, trashBody });
 });

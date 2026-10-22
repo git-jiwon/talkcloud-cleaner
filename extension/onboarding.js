@@ -7,9 +7,9 @@
   const KEY = 'talkcleaner.onboarding';
   const VERSION = 1;
   const steps = Object.freeze([
-    Object.freeze({ title: '1. 찾을 항목 정하기', message: '기준 날짜와 사진·동영상·파일 등 종류를 선택하고 ‘목록 찾기’를 누르세요. 조회만으로 항목이 삭제되지는 않습니다.' }),
-    Object.freeze({ title: '2. 목록을 보고 선택하기', message: '크기순 정렬이나 채팅방별 보기를 사용해 항목을 체크하세요. 남길 파일과 채팅방은 보호할 수 있습니다.' }),
-    Object.freeze({ title: '3. 필요하면 저장하고 정리하기', message: 'PC 저장은 선택사항입니다. 선택한 항목과 개수를 확인한 뒤 휴지통으로 이동하세요. 휴지통 확인과 복원은 톡클라우드에서 진행합니다.' })
+    Object.freeze({ title: '항목 찾기', message: '날짜와 종류를 고르고 ‘목록 찾기’를 누르세요. 조회만으로 삭제되지는 않습니다.' }),
+    Object.freeze({ title: '보고 선택하기', message: '썸네일·크기·채팅방을 보고 정리할 항목에 체크하세요.' }),
+    Object.freeze({ title: '휴지통으로 이동', message: '선택과 개수를 확인하고 실행하세요. PC 저장은 선택사항입니다. 복원은 톡클라우드에서 할 수 있습니다.' })
   ]);
   function fault(code, message) {
     const error = new Error(message);
