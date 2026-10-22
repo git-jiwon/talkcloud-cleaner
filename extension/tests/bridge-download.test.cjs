@@ -180,3 +180,91 @@ test('originalFile releases no document URL when the account changes or current 
   assert.equal(protectedItem.calls.length, 2);
   assertReadOnly(protectedItem);
 });
+
+test('previewPhoto revalidates account around photo detail and returns only the thumbnail', async () => {
+  const raw = photo({ thumbnailUrl: 'https://dn.talk.kakao.com/thumbnail.jpg?signature=synthetic-private-value' });
+  const h = bridgeWith({ detail: raw }), selected = record(raw);
+  const result = await h.api.previewPhoto({ record: selected, criteria });
+  assert.deepEqual(result, { id: selected.id, url: raw.thumbnailUrl, name: '사진.jpg', kind: 'photo', source: 'thumbnail' });
+  assert.deepEqual(h.calls.map(call => call.url), [accountUrl, P.photoDetailUrl(selected), accountUrl]);
+  assertReadOnly(h);
+});
+
+test('previewPhoto refuses missing account or non-media kinds before making requests', async () => {
+  for (const options of [undefined, {}, { record: record(photo()), criteria: {} },
+    { record: { ...record(photo()), kind: 'link', verticalType: 'LINK' }, criteria },
+    { record: { ...record(photo()), verticalType: 'FILE', kind: 'file' }, criteria }]) {
+    const h = bridgeWith();
+    await assert.rejects(h.api.previewPhoto(options));
+    assert.equal(h.calls.length, 0);
+    assertReadOnly(h);
+  }
+});
+
+test('previewPhoto supports a video poster through the existing detail route without requesting the video', async () => {
+  const raw = photo({ ...videoDetail(), thumbnailUrl: 'https://dn.talk.kakao.com/video-poster.jpg?signature=synthetic-private-value', originalFilename: '' });
+  const selected = generalRecord(raw), h = bridgeWith({ detail: raw });
+  const result = await h.api.previewPhoto({ record: selected, criteria: fileCriteria });
+  assert.deepEqual(result, { id: selected.id, url: raw.thumbnailUrl, name: '', kind: 'video', source: 'thumbnail' });
+  assert.deepEqual(h.calls.map(call => call.url), [accountUrl, P.detailUrl(selected), accountUrl]);
+  assertReadOnly(h);
+});
+
+test('video poster fallback rejects account changes, missing thumbnails and newly protected items', async () => {
+  const raw = photo({ ...videoDetail(), thumbnailUrl: 'https://dn.talk.kakao.com/video-poster.jpg?signature=synthetic-private-value' });
+  const selected = generalRecord(raw);
+  for (const [detail, activeCriteria, accounts] of [[raw, fileCriteria, [accountId, 'different-account']],
+    [{ ...raw, thumbnailUrl: undefined }, fileCriteria],
+    [raw, { ...fileCriteria, protectedFileIds: [raw.id] }]]) {
+    const h = bridgeWith({ detail, accounts });
+    await assert.rejects(h.api.previewPhoto({ record: selected, criteria: activeCriteria }), error => {
+      assert.doesNotMatch(error.message, /signature|synthetic-private-value|video\.mp4/);
+      return true;
+    });
+    assertReadOnly(h);
+  }
+});
+
+test('previewPhoto discards thumbnail if the account changes before or after detail', async () => {
+  const raw = photo({ thumbnailUrl: 'https://dn.talk.kakao.com/thumbnail.jpg?signature=synthetic-private-value' });
+  for (const accounts of [['different-account'], [accountId, 'different-account']]) {
+    const h = bridgeWith({ detail: raw, accounts });
+    await assert.rejects(h.api.previewPhoto({ record: record(raw), criteria }), error => {
+      assert.match(error.message, /계정/);
+      assert.doesNotMatch(error.message, /signature|synthetic-private-value/);
+      return true;
+    });
+    assert.equal(h.calls.length, accounts.length === 1 ? 1 : 3);
+    assertReadOnly(h);
+  }
+});
+
+test('previewPhoto refuses newly protected and changed records without fetching any image', async () => {
+  const raw = photo({ thumbnailUrl: 'https://dn.talk.kakao.com/thumbnail.jpg?signature=synthetic-private-value' });
+  for (const [detail, activeCriteria] of [[{ ...raw, size: '999' }, criteria],
+    [raw, { ...criteria, protectedFileIds: [raw.id] }], [raw, { ...criteria, protectedRoomIds: ['synthetic-room'] }],
+    [{ ...raw, thumbnailUrl: 'https://evil.example/thumbnail.jpg' }, criteria],
+    [{ ...raw, thumbnailUrl: undefined }, criteria]]) {
+    const h = bridgeWith({ detail });
+    await assert.rejects(h.api.previewPhoto({ record: record(raw), criteria: activeCriteria }), error => {
+      assert.doesNotMatch(error.message, /signature|synthetic-private-value|evil\.example/);
+      return true;
+    });
+    assert.equal(h.calls.length, 2);
+    assertReadOnly(h);
+  }
+});
+
+test('previewPhoto handles authentication errors and navigation without retries or URL leakage', async () => {
+  const raw = photo({ thumbnailUrl: 'https://dn.talk.kakao.com/thumbnail.jpg?signature=synthetic-private-value' });
+  for (const detailHandler of [() => response(raw, 403), () => { throw new Error(raw.thumbnailUrl); },
+    (_url, _config, context) => { context.location.origin = 'https://other.example'; return response(raw); }]) {
+    const h = bridgeWith({ detail: raw, detailHandler });
+    await assert.rejects(h.api.previewPhoto({ record: record(raw), criteria }), error => {
+      assert.doesNotMatch(error.message, /signature|synthetic-private-value/);
+      return true;
+    });
+    assert.equal(h.calls.length, 2);
+    assertReadOnly(h);
+  }
+});

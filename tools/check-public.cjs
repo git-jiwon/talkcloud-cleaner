@@ -11,12 +11,13 @@ const RUNTIME_FILES = Object.freeze([
   'background.js', 'bridge.js', 'download.js', 'guide.html', 'manager.css',
   'manager.html', 'manager.js', 'manifest.json', 'protection-transfer.js',
   'protection.js', 'protocol.js', 'review.js', 'settings-transfer.html',
-  'settings-transfer.js', ...ICON_FILES
+  'settings-transfer.js', 'workspace.js', 'onboarding.js', 'preview.js', ...ICON_FILES
 ]);
 const TEST_FILES = Object.freeze([
   'bridge-download.test.cjs', 'download-protocol.test.cjs', 'download.test.cjs',
   'manager.test.cjs', 'protection-transfer.test.cjs', 'protection.test.cjs',
-  'protocol.test.cjs', 'review.test.cjs', 'settings-transfer.test.cjs'
+  'protocol.test.cjs', 'review.test.cjs', 'settings-transfer.test.cjs', 'workspace.test.cjs',
+  'onboarding.test.cjs', 'preview.test.cjs', 'background.test.cjs'
 ]);
 const SOURCE_FILES = Object.freeze([
   '.gitattributes', '.gitignore', 'README.md', 'docs/PRIVACY.md',
@@ -138,13 +139,14 @@ function checkProject(root) {
   let manifest;
   try { manifest = JSON.parse(contents.get('extension/manifest.json')); }
   catch { throw new Error('Invalid extension/manifest.json.'); }
-  const version = manifest.version;
+  const version = manifest.version_name || manifest.version;
   for (const key of ['icons', 'action']) {
     const icons = key === 'icons' ? manifest.icons : manifest.action?.default_icon;
     if (!icons || Object.keys(icons).length !== ICON_SIZES.length ||
         ICON_SIZES.some(size => icons[size] !== `icons/icon${size}.png`)) throw new Error(`Manifest icon mapping mismatch: ${key}`);
   }
-  if (typeof version !== 'string' || !/^\d+\.\d+\.\d+(?:\.\d+)?$/.test(version)) throw new Error('Invalid release version.');
+  if (typeof manifest.version !== 'string' || !/^\d+\.\d+\.\d+(?:\.\d+)?$/.test(manifest.version) ||
+      typeof version !== 'string' || !/^\d+\.\d+\.\d+(?:\.\d+)?(?:-rc\.\d+)?$/.test(version)) throw new Error('Invalid release version.');
   for (const relative of ['extension/manager.html', 'extension/guide.html']) {
     const versions = [...contents.get(relative).toString('utf8').matchAll(/class="version"[^>]*>\s*([^<\s]+)\s*</g)].map(match => match[1]);
     if (!versions.length || versions.some(value => value !== version)) throw new Error(`Visible version mismatch: ${relative}`);

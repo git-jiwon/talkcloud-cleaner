@@ -3,135 +3,110 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>카카오톡 톡클라우드 정리 0.7.4 · 설치 및 사용 안내</title>
+  <title>카카오톡 톡클라우드 정리 1.0.0 · 설치 및 사용 안내</title>
   <link rel="icon" type="image/png" sizes="32x32" href="icons/icon32.png">
   <link rel="stylesheet" href="manager.css">
   <style>
-    .guide { max-width: 860px; }
-    .guide h2 { margin-bottom: 14px; }
-    .guide h3 { font-size: 14px; margin: 24px 0 8px; }
-    .guide p, .guide li { font-size: 14px; }
-    .guide ol, .guide ul { margin: 10px 0 0; padding-left: 22px; }
-    .guide li + li { margin-top: 9px; }
-    .guide code { background: #f4f3ed; padding: 2px 5px; border-radius: 4px; font-size: 13px; overflow-wrap: anywhere; }
-    .guide .notice { padding: 16px 18px; margin-bottom: 20px; border: 1px solid #e8ddc3; border-radius: 12px; background: var(--accent-soft); color: #665332; }
-    .guide .notice p + p { margin-top: 7px; }
-    .guide .caption { color: var(--muted); margin-top: 10px; font-size: 12px; }
-    .guide .example { padding: 13px 15px; margin-top: 12px; background: #fff9cc; border-radius: 8px; }
-    .guide dl { margin: 0; }
-    .guide dt { margin-top: 17px; font-weight: 700; font-size: 13px; }
-    .guide dd { margin: 5px 0 0; font-size: 13px; color: var(--muted); }
-    .guide .guide-table { margin-top: 12px; border: 1px solid var(--line); border-radius: 8px; overflow: auto; }
-    .guide .guide-table th, .guide .guide-table td { position: static; padding: 11px 13px; white-space: normal; font-size: 12px; }
-    .guide .guide-table td { min-width: 0; max-width: none; }
-    .guide .guide-table th:first-child { min-width: 115px; }
+    .guide { max-width: 940px; padding-top: 28px; }
+    .guide-header { margin-bottom: 22px; }
+    .guide h1 { font-size: 24px; line-height: 1.4; }
+    .guide h2 { font-size: 17px; margin: 0 0 12px; }
+    .guide p, .guide li { font-size: 14px; line-height: 1.7; }
+    .guide ol, .guide ul { margin: 0; padding-left: 21px; }
+    .guide li + li { margin-top: 10px; }
+    .guide .intro { margin: 7px 0 14px; }
+    .guide .download-link { display: inline-flex; text-decoration: none; }
+    .guide .quick-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .guide .quick-grid .panel { margin: 0; padding: 22px; }
+    .guide .note { margin: 14px 0 22px; color: var(--muted); font-size: 12px; }
+    .guide code { padding: 2px 4px; border-radius: 4px; background: #f4f3ed; font-size: 12px; overflow-wrap: anywhere; }
+    .guide details { margin: 0 0 10px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+    .guide summary { cursor: pointer; padding: 14px 18px; font-size: 14px; font-weight: 700; }
+    .guide .detail-content { padding: 0 18px 16px; }
+    .guide .detail-content p + p { margin-top: 9px; }
+    .guide .detail-content ul { margin-top: 8px; }
+    .guide .scope-table { overflow: auto; }
+    .guide table { width: 100%; }
+    .guide th, .guide td { position: static; padding: 9px; white-space: normal; font-size: 13px; }
+    .guide .page-footer { margin-top: 22px; }
+    @media (max-width: 680px) { .guide .quick-grid { grid-template-columns: 1fr; } .guide h1 { font-size: 21px; } }
   </style>
 </head>
 <body>
   <main class="workspace guide">
-    <header class="page-header"><div><p class="eyebrow">EDGE 확장 프로그램</p><h1>설치 및 사용 안내 <span class="version">0.7.4</span></h1><p class="intro">찾기 → 선택 → 휴지통 이동. 파일 저장은 필요할 때만 사용합니다.</p></div></header>
-    <aside class="notice" aria-label="지원 및 검증 범위">
-      <p>카카오 공식 프로그램이 아닙니다. 공식 웹페이지의 내부 요청 방식에 의존하므로 서비스 변경에 따라 동작하지 않을 수 있습니다.</p>
-      <p>자동 테스트와 가상 데이터 화면으로 검증했습니다. 실제 계정의 조회·다운로드·휴지통 이동을 모두 거치는 통합 검증은 완료되지 않았습니다. 처음에는 소수의 항목으로 날짜·유형·보호 조건과 저장 파일을 확인하세요.</p>
-    </aside>
-    <section class="panel" aria-labelledby="installHeading">
-      <h2 id="installHeading">처음 설치하기</h2>
-      <ol>
-        <li>배포 ZIP을 내려받아 계속 보관할 폴더에 압축을 풉니다. <strong>실행용 ZIP</strong>은 압축을 푼 폴더에, <strong>소스 코드 ZIP</strong>은 그 안의 <code>extension</code> 폴더에 <code>manifest.json</code>이 있습니다.</li>
-        <li>Edge 주소창에 <code>edge://extensions</code>를 입력하고 <strong>개발자 모드</strong>를 켭니다.</li>
-        <li><strong>압축 풀린 확장 로드</strong>를 누르고 <code>manifest.json</code>이 들어 있는 폴더를 선택합니다. ZIP이나 JSON 파일 자체를 고르는 것이 아닙니다.</li>
-        <li><a href="https://talkcloud.kakao.com/photo/all" target="_blank" rel="noopener noreferrer">공식 톡클라우드</a>에서 직접 로그인하고 필요한 추가 인증을 완료합니다.</li>
-        <li>톡클라우드 탭을 선택한 상태에서 확장 프로그램 메뉴의 <strong>카카오톡 톡클라우드 정리</strong> 아이콘을 누릅니다. 원래 톡클라우드 탭과 새 관리 화면을 모두 열어 둡니다.</li>
-      </ol>
-      <p class="caption">설치 폴더는 계속 보관하세요. 이 안내 파일을 직접 열 수는 있지만, 정리 기능은 Edge에 설치한 확장 프로그램에서만 실행됩니다.</p>
-    </section>
-    <section class="panel" aria-labelledby="useHeading">
-      <h2 id="useHeading">세 단계로 정리하기</h2>
-      <h3>1. 항목 찾기</h3>
-      <p><strong>이 날짜 이전</strong>과 <strong>찾을 유형</strong>을 정하고 <strong>목록 찾기</strong>를 누릅니다. 최소 크기·나간 채팅방 조건은 <strong>조회 조건 더 보기</strong>에 있습니다. 보호 대상을 설정하려면 <strong>남겨 둘 항목 보호하기</strong>를 펼치세요.</p>
-      <div class="example"><p>기준일이 <code>2021-01-01</code>이면 한국시간 2021년 1월 1일 00:00 이전 항목을 찾습니다. 기준일 당일은 제외합니다. 사진·GIF·동영상·파일·링크는 올린 날짜, 통화녹음은 녹음 시작일 기준이며 사진 촬영일이 아닙니다.</p></div>
-      <h3>2. 정리할 항목 고르기</h3>
-      <p>조회 직후에는 선택된 항목이 없습니다. 목록의 왼쪽 체크박스로 정리할 항목을 고르세요. 기본 정렬은 <strong>크기 큰 순</strong>입니다.</p>
+    <header class="guide-header">
+      <h1>설치 및 사용 안내 <span class="version">1.0.0</span></h1>
+      <p class="intro">오래된 항목을 찾고, 고르고, 휴지통으로 옮기세요. PC 저장은 선택입니다.</p>
+      <a class="button button-primary download-link" href="https://github.com/git-jiwon/talkcloud-cleaner/releases/download/v1.0.0/talkcloud-cleaner-v1.0.0.zip" target="_blank" rel="noopener noreferrer">Edge 설치용 ZIP 다운로드 ↓</a>
+    </header>
+    <div class="quick-grid">
+      <section class="panel" aria-labelledby="installHeading">
+        <h2 id="installHeading">처음 설치하기</h2>
+        <ol>
+          <li>위 ZIP을 받아 <strong>계속 보관할 폴더</strong>에 압축을 풉니다.</li>
+          <li>Edge에서 <code>edge://extensions</code>를 열고 <strong>개발자 모드 → 압축 풀린 확장 로드</strong>를 누릅니다. <code>manifest.json</code>이 들어 있는 폴더를 고르세요.</li>
+          <li><a href="https://talkcloud.kakao.com/photo/all" target="_blank" rel="noopener noreferrer">톡클라우드에 로그인</a>한 뒤 <strong>카카오톡 톡클라우드 정리</strong> 확장 아이콘을 누릅니다. 원래 탭도 열어 두세요.</li>
+        </ol>
+      </section>
+      <section class="panel" aria-labelledby="useHeading">
+        <h2 id="useHeading">세 단계로 정리하기</h2>
+        <ol>
+          <li><strong>날짜·유형</strong>을 정하고 <strong>목록 찾기</strong>를 누릅니다. 선택한 날짜 당일은 제외합니다.</li>
+          <li><strong>썸네일을 확인하고 체크</strong>합니다. 이미지를 누르면 확대됩니다. 큰 파일은 <strong>50 MB 이상 보기</strong>로 찾으세요.</li>
+          <li>개수·용량을 확인하고 <strong>휴지통으로 이동</strong>을 누릅니다. 보관할 파일이 있으면 먼저 <strong>PC에 저장 (선택)</strong>을 사용하세요.</li>
+        </ol>
+      </section>
+    </div>
+    <p class="note">처음에는 소수의 항목으로 조회·저장·휴지통 이동을 확인하세요.</p>
+
+    <details><summary>목록과 미리보기</summary><div class="detail-content">
+      <p>사진·GIF·동영상은 목록에 썸네일로 표시합니다. 동영상은 대표 이미지만 보이며 재생하지 않습니다. GIF는 움직이지 않을 수 있습니다. 원본은 자동으로 저장하지 않습니다.</p>
+      <p>이름이 없는 사진은 종류와 날짜로 표시합니다. 이미지가 안 보이면 <strong>썸네일 칸</strong>을 눌러 다시 확인하세요.</p>
+      <p>열 제목을 눌러 정렬하고 <strong>채팅방별</strong>로 묶을 수 있습니다. 검색·페이지를 바꿔도 체크는 유지되므로 <strong>선택한 항목만 보기</strong>로 전체 선택을 확인하세요.</p>
+      <p>날짜는 한국시간 기준입니다. 사진·동영상·파일·링크는 올린 날짜, 통화녹음은 녹음 시작일을 사용합니다.</p>
+    </div></details>
+    <details><summary>파일을 PC에 저장하기</summary><div class="detail-content">
+      <p>파일을 체크한 뒤 <strong>PC에 저장 (선택) → 선택한 파일 …개 저장</strong>을 누릅니다. Edge 다운로드 폴더의 <code>TalkCloud-Backup</code>에 저장합니다. 완료 후 파일을 직접 열어 확인하세요.</p>
+      <p>저장한 뒤에만 정리하려면 <strong>다운로드가 끝날 때까지 휴지통 이동 막기</strong>를 켭니다. 기본은 꺼져 있으며, 파일 저장 후 휴지통 이동은 직접 실행합니다.</p>
+      <p>‘원본’은 톡클라우드에 보관된 파일입니다. 촬영 원본과 다를 수 있습니다. 목록·결과 JSON과 보호 설정 백업에는 실제 파일이 들어 있지 않습니다.</p>
+    </div></details>
+    <details><summary>남겨 둘 항목 보호하기</summary><div class="detail-content">
+      <p>개별 항목은 행의 <strong>보호</strong>를 누르세요. 채팅방은 <strong>남겨 둘 항목 보호하기 → 채팅방 불러오기</strong>에서 체크하고 <strong>목록 찾기</strong>를 다시 누릅니다.</p>
+      <p>보호는 같은 Edge 프로필·설치본에 계정별로 저장합니다. 해제하려면 같은 보호 목록에서 항목이나 방의 체크를 풉니다. 중요 표시 보호는 기본으로 켜져 있으며 통화녹음에는 적용되지 않습니다.</p>
+    </div></details>
+    <details><summary>중단한 작업 이어가기</summary><div class="detail-content">
+      <p><strong>이전 작업 불러오기</strong>를 누르면 최근 7일 이내의 조건·선택·저장 기록을 현재 계정과 최신 목록으로 다시 확인합니다. 휴지통 이동은 자동으로 재개하지 않습니다.</p>
+      <p>오류나 중지 뒤에는 <strong>결과 재확인·남은 항목 선택</strong> 또는 <strong>목록 찾기</strong>로 현재 상태를 확인하세요. 확인된 항목만 목록에서 빠지고 남은 항목은 계속 정리할 수 있습니다.</p>
+      <p><strong>이 계정의 작업 기록 지우기</strong>는 보호 목록과 PC 파일에 영향을 주지 않습니다. 7일은 복원 유효기간이며 저장 데이터의 자동 삭제 기간이 아닙니다.</p>
+    </div></details>
+    <details><summary>업데이트·보호 설정 이전</summary><div class="detail-content">
+      <p><strong>같은 폴더에서 업데이트:</strong> 작업을 끝내고 기존 파일을 별도 보관합니다. 새 ZIP을 같은 설치 폴더에 반영한 뒤 <code>edge://extensions</code>에서 <strong>다시 로드</strong>하세요. 관리 탭을 다시 열어 <strong>1.0.0</strong>을 확인합니다.</p>
+      <p><strong>폴더나 프로필을 바꾼다면:</strong> 기존 확장의 <strong>보호 설정 이전</strong>에서 백업하고 새 설치본에서 <strong>기존 보호 목록과 합쳐 복원</strong>하세요. 복원 확인 전에는 기존 확장을 유지합니다. 작업 기록은 이전하지 않습니다.</p>
+      <p><a href="settings-transfer.html">이 확장의 보호 설정 이전 열기</a> · 소스 코드 ZIP은 <code>extension</code> 폴더를 설치 대상으로 고릅니다.</p>
+    </div></details>
+    <details><summary>지원하는 유형</summary><div class="detail-content scope-table">
+      <table><thead><tr><th scope="col">유형</th><th scope="col">휴지통 이동</th><th scope="col">PC 저장</th></tr></thead><tbody>
+        <tr><td>사진·GIF·동영상·일반 파일</td><td>지원</td><td>지원</td></tr>
+        <tr><td>보이스톡 통화녹음·링크</td><td>지원</td><td>미지원</td></tr>
+        <tr><td>팀·드라이브 데이터</td><td>미지원</td><td>미지원</td></tr>
+      </tbody></table>
+      <p>일반 파일로 공유한 음성 파일은 저장할 수 있습니다. 링크는 용량 합계에서 제외합니다.</p>
+    </div></details>
+    <details><summary>버튼이 안 눌리거나 오류가 날 때</summary><div class="detail-content">
       <ul>
-        <li><strong>이름 또는 채팅방 검색</strong>, 열 제목 정렬, <strong>채팅방별</strong> 보기로 목록을 살펴봅니다.</li>
-        <li><strong>50 MB 이상 보기</strong>는 큰 파일을 크기순으로 보여 줍니다. 다시 누르면 크기 제한이 풀립니다. 자동으로 항목을 선택하지 않습니다.</li>
-        <li><strong>지금 보이는 …개 선택</strong>은 보이는 페이지를 선택합니다. 다른 페이지를 포함하려면 <strong>필터·정렬 더 보기 → 검색 결과 전체 …개 선택</strong>을 사용합니다.</li>
-        <li>검색·정렬·페이지·채팅방 접기를 바꿔도 선택은 유지됩니다. 화면 밖의 선택 안내를 확인하고, <strong>선택한 항목만 보기</strong>로 선택 전체를 검토할 수 있습니다.</li>
-        <li>계속 남겨 둘 항목은 행의 <strong>보호</strong>를 누릅니다. 현재 목록에서 제외하고 다음 조회에도 보호합니다.</li>
+        <li><strong>휴지통 버튼이 꺼져 있음:</strong> 체크한 항목, 진행 중인 작업, 다운로드 완료 조건을 확인하세요.</li>
+        <li><strong>로그인·연결 오류:</strong> 원래 톡클라우드 탭에서 로그인·추가 인증을 끝내고 확장 아이콘을 다시 누르세요.</li>
+        <li><strong>오래된 목록·결과 미확정:</strong> <strong>목록 찾기</strong>로 다시 확인하세요. 조회 후 1시간이 지나면 재조회가 필요합니다.</li>
+        <li><strong>중지:</strong> <strong>작업 중지</strong> 또는 <strong>다운로드 중지</strong>를 누르세요. 이미 전달된 요청은 끝날 수 있으므로 결과를 다시 확인합니다.</li>
       </ul>
-      <h3>3. 휴지통으로 이동</h3>
-      <p>선택 개수와 용량을 확인하고 <strong>휴지통으로 이동</strong>을 누릅니다. 확인 창에서 실행을 승인하면 선택한 항목을 100개씩 순서대로 처리합니다. <strong>PC에 파일을 저장하지 않아도 정리할 수 있습니다.</strong> 개수를 다시 입력하거나 1,000개마다 버튼을 누를 필요는 없습니다.</p>
-      <p>처리 결과를 재조회해 확인하면 처리된 항목만 빠지고 남은 목록을 계속 정리할 수 있습니다. 검색·정렬·채팅방 펼침은 유지하고 선택은 해제합니다. 오류나 중지로 결과를 확정하지 못하면 기존 목록을 참고용으로 남기고 추가 작업을 막습니다. 이때는 <strong>목록 찾기</strong>로 다시 확인하세요.</p>
-      <p class="caption">이 확장은 영구 삭제 기능을 제공하지 않습니다. 휴지통 보관 기간, 복구 가능 여부와 공간 반영은 <a href="https://talkcloud.kakao.com/trashcan" target="_blank" rel="noopener noreferrer">공식 휴지통</a>의 현재 안내를 확인하세요. 목록의 용량 합계가 실제 확보 공간과 같다고 보장하지 않습니다.</p>
-    </section>
-    <section class="panel" aria-labelledby="downloadHeading">
-      <h2 id="downloadHeading">필요한 파일만 PC에 저장하기</h2>
-      <p>파일을 선택하고 <strong>PC에 저장 (선택)</strong>을 누르면 다운로드 도구가 열립니다. <strong>선택한 파일 …개 저장</strong>을 눌러 실제 저장을 시작하세요. 저장이 끝나도 자동으로 휴지통에 옮기지 않습니다.</p>
-      <div class="guide-table"><table><thead><tr><th scope="col">유형</th><th scope="col">PC 저장</th></tr></thead><tbody>
-        <tr><td>사진·GIF·동영상</td><td>지원합니다. 톡클라우드가 제공하는 보관 파일을 저장합니다.</td></tr>
-        <tr><td>문서·일반 첨부 파일</td><td>지원합니다. 일반 파일로 공유한 음성 파일도 포함합니다.</td></tr>
-        <tr><td>보이스톡 통화녹음</td><td>이 확장의 다운로드 기능은 지원하지 않습니다. 일반 음성 첨부 파일과 다른 분류입니다.</td></tr>
-        <tr><td>링크</td><td>다운로드하지 않습니다. 연결된 웹페이지나 그 안의 파일도 저장하지 않습니다.</td></tr>
-      </tbody></table></div>
-      <dl>
-        <dt>저장 위치</dt><dd>Edge 다운로드 폴더의 <code>TalkCloud-Backup</code> 아래 실행별 폴더에 저장합니다. 같은 이름은 새 이름을 붙여 보존합니다. 브라우저가 저장 위치를 물으면 해당 안내에 따라 진행하세요.</dd>
-        <dt>‘원본 저장’의 의미</dt><dd>톡클라우드에 보관된 파일입니다. 카카오톡 전송 과정에서 압축됐다면 촬영 원본과 다를 수 있습니다. Edge가 완료한 다운로드만 완료로 표시하며, 파일이 잘 열리는지는 직접 확인하세요.</dd>
-        <dt>저장 완료를 확인한 뒤에만 정리하려면</dt><dd><strong>다운로드가 끝날 때까지 휴지통 이동 막기</strong>를 켭니다. 기본은 꺼져 있습니다. 이 옵션은 사진·GIF·동영상·일반 파일에만 적용하며 링크·통화녹음에는 적용하지 않습니다.</dd>
-        <dt>이미 백업했는데 저장을 요구한다면</dt><dd>현재 관리 화면에서 확인한 다운로드 기록을 사용합니다. 이전 관리 탭이나 다른 프로그램에서 저장한 파일은 자동 인정하지 않습니다. 이미 보관한 파일을 확인했다면 저장 확인 옵션을 끄고 정리할 수 있습니다.</dd>
-        <dt>JSON 기록과 실제 파일의 차이</dt><dd><strong>목록 정보 저장 (.json)</strong>은 선택 항목의 메타데이터를, <strong>다운로드 결과 기록 (.json)</strong>은 저장 내역을 기록합니다. 보호 설정 백업 JSON은 보호 목록을 담습니다. 어느 JSON에도 사진·동영상·문서 내용 자체는 포함되지 않습니다.</dd>
-      </dl>
-    </section>
-    <section class="panel" aria-labelledby="protectHeading">
-      <h2 id="protectHeading">남겨 둘 항목 보호하기</h2>
-      <dl>
-        <dt>개별 항목</dt><dd>조회 행의 <strong>보호</strong>를 누르면 이후 조회에서도 제외합니다. 보호를 풀려면 <strong>남겨 둘 항목 보호하기 → 개별 항목 보호</strong>에서 해당 항목을 해제합니다. <strong>전체 보호 해제</strong>는 개별 항목 보호 목록을 비웁니다.</dd>
-        <dt>채팅방 전체</dt><dd><strong>남겨 둘 항목 보호하기 → 채팅방 불러오기 → 이름 검색 → 보호할 방 체크 → 목록 찾기</strong> 순서로 사용합니다. 선택한 방은 모든 지원 분류에서 보호합니다. 보호 채팅방이 있을 때 방 정보를 확인할 수 없는 항목도 대상에서 제외합니다.</dd>
-        <dt>나간 채팅방</dt><dd>나간 채팅방은 한 묶음으로 표시됩니다. 이 묶음을 보호하면 나간 채팅방 전체를 보호합니다.</dd>
-        <dt>중요 표시 항목</dt><dd><strong>중요 표시 항목 보호</strong>는 기본으로 켜져 있습니다. 사진·GIF·동영상·파일·링크의 중요 표시가 있거나 여부가 불명확한 항목을 제외합니다. 통화녹음에는 이 옵션을 적용하지 않으므로 개별 항목·채팅방 보호를 사용하세요.</dd>
-        <dt>저장 범위</dt><dd>보호 목록은 카카오 계정별로 현재 Edge 프로필의 확장 로컬 저장소에 보관합니다. 다른 PC·프로필·새 설치본으로 자동 이동하지 않습니다. 확장 제거 또는 데이터 초기화 전에 필요한 보호 목록을 백업하세요.</dd>
-      </dl>
-    </section>
-    <section class="panel" aria-labelledby="scopeHeading">
-      <h2 id="scopeHeading">분류별 차이</h2>
-      <ul>
-        <li><strong>사진·GIF·동영상·파일:</strong> 날짜, 최소 파일 크기, 중요 표시, 개별 항목·채팅방 보호 조건을 적용합니다.</li>
-        <li><strong>링크:</strong> 날짜와 보호 조건을 적용합니다. 용량 합계에서 제외하고 1단계의 최소 파일 크기는 적용하지 않습니다.</li>
-        <li><strong>통화녹음:</strong> 녹음 시작일, 최소 파일 크기, 개별 항목·채팅방 보호 조건을 적용합니다. ‘나간 채팅방 포함’과 관계없이 전체 범위를 조회합니다.</li>
-        <li><strong>팀·드라이브 데이터:</strong> 이 확장의 조회·저장·정리 대상에 포함하지 않습니다. 공식 서비스에서 관리하세요.</li>
-      </ul>
-      <p class="caption">2단계의 검토용 크기 필터는 링크와 크기 미확인 항목을 제외합니다. 크기 정렬에서는 이 항목들을 뒤에 표시합니다. 1단계 조건을 바꾸면 재조회가 필요하고, 2단계 필터는 이미 조회한 목록에만 적용합니다.</p>
-    </section>
-    <section class="panel" aria-labelledby="updateHeading">
-      <h2 id="updateHeading">업데이트와 보호 설정 이전</h2>
-      <h3>같은 설치 폴더에서 업데이트</h3>
-      <ol>
-        <li>기존 파일을 별도 보관하고 새 버전의 실행 파일을 같은 설치 폴더에 반영합니다. 보호 목록은 미리 백업할 수 있습니다.</li>
-        <li><code>edge://extensions</code>에서 이 확장의 <strong>다시 로드</strong>를 누릅니다. 새 권한 안내가 나오면 용도를 확인합니다.</li>
-        <li>열려 있던 관리 탭을 닫고 공식 톡클라우드 탭에서 확장 아이콘을 다시 누릅니다. 화면의 버전이 <strong>0.7.4</strong>인지 확인합니다.</li>
-      </ol>
-      <h3>설치 폴더·브라우저 프로필을 바꾸는 경우</h3>
-      <ol>
-        <li>다른 관리 탭을 닫고 <strong>기존 확장 관리 화면 → 보호 설정 이전 → 보호 설정 백업 만들기 → 백업 파일 저장</strong>을 진행합니다.</li>
-        <li>새 설치본을 등록하고 그 관리 화면의 <strong>보호 설정 이전</strong>에서 백업 파일을 선택합니다.</li>
-        <li>항목 수를 확인하고 <strong>기존 보호 목록과 합쳐 복원</strong>을 누릅니다. 새 설치본의 보호 항목도 유지합니다.</li>
-        <li><strong>저장 후 보호 목록 확인 완료</strong>를 확인한 뒤 관리 화면을 다시 열어 보호 목록을 확인합니다. 확인 전까지 기존 확장은 제거하지 마세요.</li>
-      </ol>
-      <p><a href="settings-transfer.html">현재 확장의 보호 설정 이전 화면 열기</a></p>
-      <p class="caption">파일 주소로 연 페이지에서는 확장 설정을 읽을 수 없습니다. 위 이전 도구는 설치된 확장 안에서 여세요. 보호 설정 백업에는 계정·항목 식별자와 이름이 들어 있으므로 비공개로 보관하세요. 조회 조건의 체크박스는 새 관리 화면에서 다시 확인합니다.</p>
-    </section>
-    <section class="panel" aria-labelledby="helpHeading">
-      <h2 id="helpHeading">문제가 생겼을 때</h2>
-      <dl>
-        <dt>조회·휴지통 이동 중지</dt><dd>선택 요약 옆의 <strong>작업 중지</strong>를 누릅니다. 이미 전달된 요청은 끝날 수 있습니다. 일부가 처리됐을 수 있으므로 <strong>목록 찾기</strong>로 다시 확인하세요.</dd>
-        <dt>다운로드 중지</dt><dd><strong>다운로드 중지</strong>를 누릅니다. 이미 완료된 PC 파일은 남습니다. 미완료 항목은 저장 완료로 계산하지 않습니다.</dd>
-        <dt>결과 미확정 또는 참고용 목록</dt><dd>서버 결과를 확정하지 못한 상태입니다. 기존 목록은 남지만 추가 휴지통 이동과 다운로드를 막습니다. 공식 톡클라우드와 휴지통을 확인한 뒤 재조회하세요. 미확정 작업을 자동 재실행하지 않습니다.</dd>
-        <dt>파일 유형 정보가 맞지 않는 항목</dt><dd>유형 정보가 서로 맞지 않는 미디어 항목은 제외하고 조회를 계속합니다. 제외 개수를 확인하세요. 식별자·날짜·계정 정보의 이상은 작업 중단 사유입니다.</dd>
-        <dt>휴지통 이동 버튼이 비활성 상태</dt><dd>선택한 항목이 없거나 다른 작업이 진행 중일 수 있습니다. 저장 확인 옵션을 켰다면 미완료 다운로드도 원인입니다. 선택 요약의 안내를 확인하세요.</dd>
-        <dt>로그인·연결 오류 또는 오래된 조회</dt><dd>원래 톡클라우드 탭에서 로그인·추가 인증을 완료하고, 필요하면 새로고침 후 확장 아이콘으로 관리 화면을 다시 여세요. 조회 후 1시간이 지난 목록은 다시 조회해야 합니다.</dd>
-        <dt>오류를 신고할 때</dt><dd>버전, 수행한 단계, 개인정보를 지운 오류 문구를 알려 주세요. 계정·채팅방·파일 이름이나 식별자, 보호 백업, 목록 JSON, 다운로드 URL, 로그인 정보를 공개 이슈에 첨부하지 마세요. 화면 캡처도 해당 정보를 먼저 가려 주세요.</dd>
-      </dl>
-    </section>
-    <footer class="page-footer"><p>이 안내는 확장에 포함된 로컬 문서입니다. 외부 글꼴·이미지·스크립트를 불러오지 않습니다.</p></footer>
+    </div></details>
+    <details><summary>개인정보·검증·문의</summary><div class="detail-content">
+      <p>로그인은 공식 톡클라우드에서만 합니다. 개발자 서버나 분석 서비스로 정보를 보내지 않습니다. 작업 기록은 이 Edge에 저장하며 원본·썸네일 URL은 기록하지 않습니다.</p>
+      <p>실제 계정 통합 검증은 아직 완료되지 않았습니다. 자동 검사는 실제 서비스 검증을 대신하지 않습니다.</p>
+      <p>오류를 공유할 때는 버전·재현 단계와 개인정보를 지운 오류 문구만 보내세요. 실제 파일·채팅방 이름, 식별자, JSON·보호 백업, 다운로드 주소는 공개하지 마세요.</p>
+      <p><a href="https://github.com/git-jiwon/talkcloud-cleaner/blob/v1.0.0/docs/PRIVACY.md" target="_blank" rel="noopener noreferrer">개인정보와 권한 자세히 보기</a> · <a href="https://github.com/git-jiwon/talkcloud-cleaner/issues" target="_blank" rel="noopener noreferrer">문제 신고</a></p>
+    </div></details>
+    <footer class="page-footer"><p>카카오의 비공식 도구입니다. 영구 삭제는 하지 않으며, 보관 기간·복구·공간 반영은 <a href="https://talkcloud.kakao.com/trashcan" target="_blank" rel="noopener noreferrer">공식 휴지통</a> 안내를 확인하세요.</p></footer>
   </main>
 </body>
 </html>

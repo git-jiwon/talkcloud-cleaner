@@ -17,6 +17,30 @@
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 }
+.workspace-recovery, .recovery-help { display: flex; justify-content: space-between; align-items: center; gap: 18px; margin-bottom: 20px; padding: 16px 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.recovery-help, .welcome-panel { background: var(--accent-soft); }
+.recovery-actions { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.recovery-actions details { position: relative; font-size: 12px; max-width: 250px; }
+.recovery-actions summary { cursor: pointer; }
+.recovery-actions details[open] { padding: 10px; border: 1px solid var(--line); border-radius: 8px; }
+.welcome-panel ol { padding-left: 22px; }
+.welcome-panel li + li { margin-top: 8px; }
+.preview-photo { display: block; padding: 2px 0; font-size: 12px; }
+.media-name { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.media-filename { overflow: hidden; text-overflow: ellipsis; }
+.media-thumbnail { position: relative; display: grid; place-items: center; flex: 0 0 104px; width: 104px; height: 76px; padding: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 9px; background: #f0efeb; color: var(--muted); }
+.media-thumbnail:hover { border-color: #b9a900; box-shadow: 0 0 0 2px var(--accent-soft); }
+.media-thumbnail img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.thumbnail-placeholder { position: absolute; inset: 0; display: grid; place-items: center; font-size: 10px; padding: 5px; white-space: normal; background: #f0efeb; pointer-events: none; }
+.thumbnail-badge { position: absolute; left: 4px; bottom: 4px; padding: 1px 5px; border-radius: 4px; color: #fff; background: rgb(0 0 0 / 70%); font-size: 10px; line-height: 1.6; pointer-events: none; }
+.photo-preview-overlay { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 24px; background: rgb(25 22 18 / 65%); }
+.photo-preview-card { background: var(--surface); border-radius: 16px; padding: 24px; width: min(900px, 100%); max-height: 92vh; overflow: auto; }
+.photo-preview-card h2 { overflow-wrap: anywhere; }
+.photo-preview-card img { display: block; max-width: 100%; max-height: 70vh; margin: 18px auto 0; object-fit: contain; }
+.outcome-panel section { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+.outcome-panel li { overflow-wrap: anywhere; }
+.outcome-panel summary { cursor: pointer; margin: 10px 0; }
+@media (max-width: 760px) { .workspace-recovery, .recovery-help { align-items: flex-start; flex-direction: column; } .recovery-actions { flex-wrap: wrap; } }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html { scroll-behavior: smooth; scroll-padding-top: 20px; }

@@ -260,3 +260,18 @@ test('icon generator refuses linked or non-directory parents before any writes',
     }
   }
 });
+
+test('candidate packages use the visible version name while retaining a valid numeric extension version', () => {
+  const root = fixture('0.9.0'), version = '1.0.0-rc.1';
+  const manifestPath = path.join(root, 'extension/manifest.json');
+  const manifest = JSON.parse(fs.readFileSync(manifestPath)); manifest.version_name = version;
+  fs.writeFileSync(manifestPath, JSON.stringify(manifest));
+  for (const relative of ['README.md', 'docs/RELEASE_NOTES.md', 'extension/manager.html', 'extension/guide.html']) {
+    const file = path.join(root, relative); fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replaceAll('0.9.0', version));
+  }
+  const result = buildPublic(root);
+  assert.equal(result.manifest.version, version);
+  assert.equal(result.names[0], 'talkcloud-cleaner-v1.0.0-rc.1.zip');
+  const packaged = JSON.parse(readStoredZip(fs.readFileSync(path.join(root, 'releases', result.names[0]))).get('manifest.json'));
+  assert.equal(packaged.version, '0.9.0'); assert.equal(packaged.version_name, version);
+});
