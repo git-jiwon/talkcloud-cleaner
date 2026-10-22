@@ -641,8 +641,8 @@ test("205-photo plan needs one confirmation, trashes 100/100/5, and verifies an 
   assert.equal(h.elements.scan.disabled, false);
 });
 
-test("changing any date, kind, size or protection filter invalidates the reviewed plan", async () => {
-  for (const id of ["cutoff", "typesPhoto", "typesVideo", "typesFile", "typesLink", "typesCall", "includeGif", "includeLeft", "minSizeMB", "protectStarred"]) {
+test("changing a date, kind or size lookup filter invalidates the reviewed plan", async () => {
+  for (const id of ["cutoff", "typesPhoto", "typesVideo", "typesFile", "typesLink", "typesCall", "includeGif", "includeLeft", "minSizeMB"]) {
     const h = await legacyHarness({ count: 1 });
     await h.click("scan"); await h.click("selectFiltered");
 
@@ -659,6 +659,150 @@ test("changing any date, kind, size or protection filter invalidates the reviewe
     assert.equal(h.trashCalls().length, 0, id);
     assert.match(h.elements.status.textContent, /조건이 바뀌었습니다/);
   }
+});
+
+test('the filter-wide select action remains outside the collapsed advanced review options', async () => {
+  const advanced = /<details\b[^>]*\bid="reviewOptions"[^>]*>([\s\S]*?)<\/details>/.exec(html);
+  assert.ok(advanced, 'The optional filters should remain collapsible');
+  assert.doesNotMatch(advanced[1], /\bid="selectFiltered"/);
+  assert.match(html, /class="review-list-heading"[\s\S]*?id="selectFiltered"[\s\S]*?class="group-actions"/);
+  const h = await harness({ count: 1 });
+  await h.click('scan');
+  assert.equal(h.elements.reviewOptions.open, false);
+  assert.equal(h.elements.selectFiltered.hidden, false);
+  assert.equal(h.elements.selectFiltered.disabled, false);
+  assert.notEqual(h.elements.selectFiltered.textContent, h.elements.selectPage.textContent);
+});
+
+test('filter-wide select spans hidden pages and collapsed rooms while page selection is limited to visible rows', async () => {
+  const records = photoRecords(205).map((record, index) => ({ ...record,
+    roomId: index < 120 ? 'one' : 'two', name: `${index < 150 ? 'keep' : 'skip'}-${index}.jpg` }));
+  const h = await harness({ records });
+  await h.click('scan');
+  h.elements.reviewSearch.value = 'keep-'; await h.input('reviewSearch');
+  await h.click('selectPage');
+  assert.equal(h.elements.selectedCount.textContent, '100');
+  await h.click('clearSelection'); await h.click('viewRooms');
+  assert.equal(h.elements.selectPage.disabled, true, 'Collapsed room rows are not visible page rows');
+  assert.equal(h.elements.selectFiltered.disabled, false);
+  await h.click('selectFiltered');
+  assert.equal(h.elements.selectedCount.textContent, '150');
+  await h.click('export');
+  const exported = JSON.parse(await h.exports.at(-1).text());
+  assert.equal(exported.records.length, 150);
+  assert.ok(exported.records.every(record => record.name.startsWith('keep-')));
+  assert.equal(h.trashCalls().length, 0);
+});
+
+test('turning off important-item protection preserves the reviewed page, query controls and existing selection', async () => {
+  const records = [...photoRecords(205).map(record => ({ ...record, roomId: 'one', name: `keep-${record.id}.jpg` })),
+    { ...photoRecords(1)[0], id: 'omitted-starred', roomId: 'one', name: 'keep-starred.jpg', bookmarked: true }];
+  const h = await harness({ records });
+  await h.click('scan');
+  assert.equal(h.elements.foundCount.textContent, '205');
+  h.elements.reviewSearch.value = 'keep-'; await h.input('reviewSearch');
+  h.elements.reviewRoom.value = 'room:one'; await h.change('reviewRoom');
+  h.elements.reviewMinMB.value = '0.0001'; await h.input('reviewMinMB');
+  h.elements.reviewSort.value = 'date-asc'; await h.change('reviewSort');
+  await h.click('previewNext'); await selectRecord(h, 'photo-0100');
+  const visible = h.checkboxes().map(node => node.getAttribute('data-record-id'));
+  const pageInfo = h.elements.pageInfo.textContent, calls = h.calls.length;
+  h.elements.protectStarred.checked = false; await h.change('protectStarred');
+  assert.equal(h.elements.foundCount.textContent, '205', 'Items omitted during lookup need a new lookup before they can be added');
+  assert.equal(h.elements.selectedCount.textContent, '1');
+  assert.equal(h.elements.execute.disabled, false);
+  assert.equal(h.elements.reviewSearch.value, 'keep-');
+  assert.equal(h.elements.reviewRoom.value, 'room:one');
+  assert.equal(h.elements.reviewMinMB.value, '0.0001');
+  assert.equal(h.elements.reviewSort.value, 'date-asc');
+  assert.equal(h.elements.pageInfo.textContent, pageInfo);
+  assert.deepEqual(h.checkboxes().map(node => node.getAttribute('data-record-id')), visible);
+  assert.equal(h.checkboxes().find(node => node.getAttribute('data-record-id') === 'photo-0100').checked, true);
+  assert.equal(h.calls.length, calls, 'Changing the protection review option makes no account or list request');
+  assert.match(h.elements.status.textContent, /목록 찾기.*다시/);
+  const saved = workspace.read(h.localStorage, 'account-one');
+  assert.equal(saved.criteria.protectStarred, false);
+  assert.deepEqual(saved.selection.map(item => item.id), ['photo-0100']);
+  await h.click('export');
+  assert.equal(JSON.parse(await h.exports.at(-1).text()).criteria.protectStarred, false);
+});
+
+function mixedImportanceRecords() {
+  return photoRecords(6).map((record, index) => ({ ...record,
+    kind: index === 3 ? 'file' : index > 3 ? 'recording' : 'photo',
+    verticalType: index === 3 ? 'FILE' : index > 3 ? 'RECORDING' : 'MEDIA',
+    bookmarked: [false, true, null, true, true, null][index] }));
+}
+
+test('important protection toggles cached rows without restoring removed selections and exempts call recordings', async () => {
+  const records = mixedImportanceRecords(), h = await harness({ records });
+  await h.click('categoryAll'); h.elements.protectStarred.checked = false;
+  await h.click('scan'); await h.click('selectFiltered');
+  assert.equal(h.elements.foundCount.textContent, '6');
+  assert.equal(h.elements.selectedCount.textContent, '6');
+  const calls = h.calls.length;
+  h.elements.protectStarred.checked = true; await h.change('protectStarred');
+  const expected = ['photo-0000', 'photo-0004', 'photo-0005'];
+  assert.deepEqual(h.checkboxes().map(node => node.getAttribute('data-record-id')).sort(), expected);
+  assert.ok(h.checkboxes().every(node => node.checked));
+  assert.equal(h.elements.selectedCount.textContent, '3');
+  let saved = workspace.read(h.localStorage, 'account-one');
+  assert.equal(saved.criteria.protectStarred, true);
+  assert.deepEqual(saved.selection.map(item => item.id).sort(), expected);
+  h.elements.protectStarred.checked = false; await h.change('protectStarred');
+  assert.equal(h.elements.foundCount.textContent, '6');
+  assert.equal(h.elements.selectedCount.textContent, '3');
+  assert.deepEqual(h.checkboxes().filter(node => node.checked).map(node => node.getAttribute('data-record-id')).sort(), expected);
+  assert.equal(h.calls.length, calls);
+  saved = workspace.read(h.localStorage, 'account-one');
+  assert.equal(saved.criteria.protectStarred, false);
+  assert.deepEqual(saved.selection.map(item => item.id).sort(), expected);
+  assert.equal(h.trashCalls().length, 0);
+});
+
+test('downloads and trash use the current important-protection option after toggling in either direction', async () => {
+  for (const [initial, current] of [[true, false], [false, true]]) {
+    const records = photoRecords(3).map((record, index) => ({ ...record, bookmarked: index === 2 }));
+    const h = await legacyHarness({ records });
+    h.elements.protectStarred.checked = initial;
+    await h.click('scan'); await h.click('selectFiltered');
+    h.elements.protectStarred.checked = current; await h.change('protectStarred');
+    assert.equal(h.elements.selectedCount.textContent, '2');
+    assert.equal(h.elements.execute.disabled, false);
+    await h.click('downloadPhotos');
+    const originals = h.calls.filter(call => call.method === 'originalFile');
+    assert.equal(originals.length, 2);
+    assert.ok(originals.every(call => call.options.criteria.protectStarred === current));
+    assert.match(h.elements.downloadStatus.textContent, /저장 완료/);
+    await h.click('execute');
+    assert.equal(h.trashCalls().length, 1);
+    assert.equal(h.trashCalls()[0].options.protectStarred, current);
+    assert.deepEqual(h.trashCalls()[0].options.records.map(record => record.id).sort(), ['photo-0000', 'photo-0001']);
+    const saved = workspace.read(h.localStorage, 'account-one');
+    assert.equal(saved.criteria.protectStarred, current);
+    assert.ok(saved.outcomes.every(outcome => outcome.criteria.protectStarred === current));
+  }
+});
+
+test('reopening after important-protection toggles restores only the remaining selected identities with current criteria', async () => {
+  const storage = new Map(), records = mixedImportanceRecords(), first = await harness({ storage, records });
+  await first.click('categoryAll'); first.elements.protectStarred.checked = false;
+  await first.click('scan'); await first.click('selectFiltered');
+  first.elements.protectStarred.checked = true; await first.change('protectStarred');
+  first.elements.protectStarred.checked = false; await first.change('protectStarred');
+  first.elements.reviewSort.value = 'date-asc'; await first.change('reviewSort');
+  await first.click('viewRooms');
+  const second = await harness({ storage, records });
+  await second.click('restoreWorkspace');
+  assert.equal(second.elements.protectStarred.checked, false);
+  assert.equal(second.elements.foundCount.textContent, '6');
+  assert.equal(second.elements.selectedCount.textContent, '3');
+  assert.equal(second.elements.reviewSort.value, 'date-asc');
+  assert.equal(second.elements.viewRooms.getAttribute('aria-pressed'), 'true');
+  const saved = workspace.read(second.localStorage, 'account-one');
+  assert.deepEqual(saved.selection.map(item => item.id).sort(), ['photo-0000', 'photo-0004', 'photo-0005']);
+  assert.ok(second.calls.filter(call => call.method === 'readPage').every(call => call.options.protectStarred === false));
+  assert.equal(second.trashCalls().length, 0);
 });
 
 test("invalid date, server lookup failure, and an account change produce no executable plan", async () => {

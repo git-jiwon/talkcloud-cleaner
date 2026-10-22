@@ -243,6 +243,7 @@
   }
   function invalidate() {
     closePreview();
+    $('starredReviewNote').hidden = true;
     $('reviewSearch').value = ''; $('reviewRoom').value = ''; $('reviewMinMB').value = '0'; $('reviewSelectedOnly').checked = false; $('reviewSort').value = 'size-desc';
     $('downloadProgress').max = 1; $('downloadProgress').value = 0;
     $('downloadStatus').textContent = downloadRun ? '새 목록에서는 저장 완료 확인을 다시 진행합니다. 이전에 PC에 저장한 파일은 유지됩니다.' : '2단계에서 항목을 체크한 뒤 ‘선택한 파일 저장’을 누르세요.';
@@ -309,9 +310,11 @@
     if (!mutateProtection(data => { if (!data.files.some(item => item.id === record.id)) data.files.push({ id: record.id, name: record.name || kindLabels[record.kind] }); })) return;
     const criteria = Object.freeze({ ...plan.criteria, ...S.filters(protection) });
     const records = plan.records.filter(item => !P.protectedRecord(item, criteria));
+    const reviewRecords = (plan.reviewRecords || plan.records).filter(item => !P.protectedRecord(item, criteria));
     const remainingIds = new Set(records.map(item => item.id));
     for (const id of selectedIds) if (!remainingIds.has(id)) selectedIds.delete(id);
-    plan = Object.freeze({ ...plan, criteria, records: Object.freeze(records), protectionSignature: S.signature(protection) });
+    plan = Object.freeze({ ...plan, criteria, records: Object.freeze(records), reviewRecords: Object.freeze(reviewRecords), protectionSignature: S.signature(protection) });
+    workspaceCriteria = criteria;
     render(records); update();
     status('항목을 보호 목록에 저장하고 삭제 대상에서 제외했습니다. 다음 조회에서도 보호됩니다.');
   }
@@ -548,8 +551,9 @@
     const roomFilter = $('reviewRoom').value;
     $('reviewRoom').replaceChildren();
     const allOption = document.createElement('option'); allOption.value = ''; allOption.textContent = '모든 채팅방'; $('reviewRoom').append(allOption);
-    const groups = R.group(records, roomName);
-    for (const group of groups) { const option = document.createElement('option'); option.value = group.key; option.textContent = `${group.name} (${group.records.length})`; $('reviewRoom').append(option); }
+    const groups = R.group(plan?.reviewRecords || records, roomName);
+    const roomCounts = new Map(R.group(records, roomName).map(group => [group.key, group.records.length]));
+    for (const group of groups) { const option = document.createElement('option'); option.value = group.key; option.textContent = `${group.name} (${roomCounts.get(group.key) || 0})`; $('reviewRoom').append(option); }
     $('reviewRoom').value = groups.some(group => group.key === roomFilter) ? roomFilter : '';
     const minBytes = Math.ceil(Number($('reviewMinMB').value) * 1024 * 1024);
     const validMinimum = Number.isSafeInteger(minBytes) && minBytes >= 0;
@@ -565,8 +569,9 @@
     $('reviewSummary').textContent = validMinimum ? `검색 결과 ${summary(filteredRecords)} · 전체 조회 ${records.length.toLocaleString()}개` : '검토 최소 크기는 0 이상의 숫자로 입력하세요.';
     $('reviewEmpty').hidden = filteredRecords.length > 0;
     $('reviewEmpty').textContent = reviewNeedsRefresh ? '현재 목록은 참고용입니다. ‘목록 찾기’를 눌러 다시 조회하세요.' : !plan ? '먼저 1단계에서 날짜와 유형을 정하고 ‘목록 찾기’를 누르세요.' : !records.length ? '조회 조건에 맞는 항목이 없습니다.' : validMinimum ? '검토 조건에 맞는 항목이 없습니다. 필터를 해제하면 남은 목록을 확인할 수 있습니다.' : '검토 최소 크기를 확인하세요.';
-    $('selectFiltered').textContent = `검색 결과 전체 ${filteredRecords.length.toLocaleString()}개 선택`;
-    $('selectPage').textContent = `지금 보이는 ${visibleRecords.length.toLocaleString()}개 선택`;
+    $('selectFiltered').textContent = `전체 선택 (${filteredRecords.length.toLocaleString()}개)`;
+    $('selectPage').textContent = `현재 페이지 선택 (${visibleRecords.length.toLocaleString()}개)`;
+    $('selectionScope').textContent = `전체 선택은 현재 필터 결과 ${filteredRecords.length.toLocaleString()}개에 적용됩니다. 다른 페이지도 포함하며, 기존 선택은 유지합니다.`;
     const selected = R.selected(records, selectedIds), visibleIds = new Set(visibleRecords.map(record => record.id)), hidden = selected.filter(record => !visibleIds.has(record.id));
     $('selectionSummary').textContent = `선택한 항목 ${summary(selected)}`;
     $('hiddenSelection').hidden = !hidden.length;
@@ -605,7 +610,9 @@
           $('roomStatus').textContent = `${roomWarning.trim()} ${error.message}`;
         }
       }
-      plan = Object.freeze({ criteria, records: Object.freeze(records), createdAt: Date.now(), protectionSignature: signature, typeMismatchCount, unknownRoomCount });
+      // Cache only already-reviewed rows in memory. Rows omitted at scan time need a new scan.
+      plan = Object.freeze({ criteria, records: Object.freeze(records), reviewRecords: Object.freeze(records), starredOmitted: criteria.protectStarred,
+        createdAt: Date.now(), protectionSignature: signature, typeMismatchCount, unknownRoomCount });
       workspaceCriteria = criteria;
       let restoreNote = '';
       if (restore) {
@@ -799,7 +806,8 @@
       const records = remaining.records.filter(record => reviewedIds.has(record.id));
       const receiptKeys = new Set(D.files(records).map(record => D.receiptKey(current.criteria.account, record)));
       for (const key of savedFiles.keys()) if (!receiptKeys.has(key)) savedFiles.delete(key);
-      plan = Object.freeze({ ...reviewed, records: Object.freeze(records), createdAt: Date.now(), typeMismatchCount: remaining.typeMismatchCount, unknownRoomCount: remaining.unknownRoomCount });
+      plan = Object.freeze({ ...reviewed, records: Object.freeze(records), reviewRecords: Object.freeze(records), starredOmitted: reviewed.starredOmitted || current.criteria.protectStarred,
+        createdAt: Date.now(), typeMismatchCount: remaining.typeMismatchCount, unknownRoomCount: remaining.unknownRoomCount });
       showScanWarnings(plan);
       status(`${accepted.toLocaleString()}개 처리 후 목록에서 사라진 것을 확인했습니다. ${records.length ? `남은 ${records.length.toLocaleString()}개는 다시 조회하지 않고 계속 선택할 수 있습니다.` : '조회한 목록의 정리가 끝났습니다.'}`);
       log('재조회 검증 완료. 영구 삭제는 실행하지 않았습니다.');
@@ -815,7 +823,30 @@
     }
   });
   $('stop').addEventListener('click', () => { stopped = true; status('중지 요청됨. 진행 중인 서버 요청이 끝나면 멈춥니다.'); update(); });
-  for (const name of filterFields) $(name).addEventListener('change', () => {
+  $('protectStarred').addEventListener('change', () => {
+    if (busy) return;
+    closePreview();
+    if (!plan) {
+      status(reviewNeedsRefresh ? '현재 목록은 참고용입니다. 중요 표시 보호 조건은 다음 조회에 적용됩니다. 목록을 다시 찾으세요.' : '중요 표시 보호 조건을 변경했습니다. 기존 목록은 유지하며 다음 조회에도 적용됩니다.');
+      return;
+    }
+    const criteria = Object.freeze({ ...plan.criteria, protectStarred: $('protectStarred').checked });
+    const reviewRecords = plan.reviewRecords || plan.records;
+    const records = reviewRecords.filter(record => !P.protectedRecord(record, criteria) &&
+      (!criteria.protectStarred || record.kind === 'recording' || record.bookmarked === false));
+    const allowedIds = new Set(records.map(record => record.id));
+    let removed = 0;
+    for (const id of selectedIds) if (!allowedIds.has(id)) { selectedIds.delete(id); removed++; }
+    plan = Object.freeze({ ...plan, criteria, records: Object.freeze(records) });
+    workspaceCriteria = criteria;
+    const needsScan = !criteria.protectStarred && plan.starredOmitted;
+    $('starredReviewNote').hidden = !needsScan;
+    $('starredReviewNote').textContent = needsScan ? '처음 조회할 때 제외한 중요 항목까지 추가하려면 ‘목록 찾기’를 다시 누르세요. 현재 목록과 선택은 유지됩니다.' : '';
+    render(records); update();
+    status(criteria.protectStarred ? `중요 표시 항목과 표시 여부가 확인되지 않은 항목을 제외했습니다.${removed ? ` 선택 ${removed.toLocaleString()}개를 해제했습니다.` : ''} 현재 목록의 검색·정렬과 나머지 선택은 유지됩니다.` :
+      `중요 표시 보호를 해제했습니다. 기존 조회 목록과 선택은 유지됩니다.${needsScan ? ' 조회할 때 제외된 중요 항목까지 추가하려면 ‘목록 찾기’를 다시 누르세요.' : ' 보호로 숨긴 항목을 다시 표시하며 선택은 자동 복원하지 않습니다.'}`);
+  });
+  for (const name of filterFields.filter(name => name !== 'protectStarred')) $(name).addEventListener('change', () => {
     invalidate(); status('조건이 바뀌었습니다. 다시 조회하세요.');
   });
   for (const [name, kinds] of Object.entries(presets)) $(name).addEventListener('click', () => {

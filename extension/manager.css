@@ -541,8 +541,10 @@ progress::-moz-progress-bar { border-radius: 8px; background: var(--accent); }
 .cleaner-simple .record-export { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; max-width: none; }
 .cleaner-simple .record-export .help, .cleaner-simple .record-export .button { margin-top: 0; font-size: 12px; }
 .cleaner-simple .review-list-heading { gap: 8px; margin-top: 8px; margin-bottom: 8px; }
-.cleaner-simple .selection-actions { gap: 17px; }
-.cleaner-simple .selection-actions .button { min-height: 28px; font-size: 12px; }
+.cleaner-simple .selection-actions { gap: 9px; }
+.cleaner-simple .selection-actions .button { min-height: 34px; font-size: 12px; }
+.cleaner-simple .selection-actions .button-primary { padding: 7px 13px; }
+.selection-scope { margin: 0 0 10px; }
 .cleaner-simple .page-info { font-size: 12px; }
 .cleaner-simple .group-actions { gap: 15px; margin: 0 0 8px; }
 .cleaner-simple .group-actions:not(:has(button:not([hidden]))) { display: none; }
